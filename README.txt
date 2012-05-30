@@ -1,5 +1,6 @@
 FREAK: Fast Retina Keypoint
 
+A. Alahi, R. Ortiz, and P. Vandergheynst. FREAK: Fast Retina Keypoint. In IEEE Conference on Computer Vision and Pattern Recognition, 2012.
 Alexandre Alahi, Raphael Ortiz, Kirell Benzi, Pierre Vandergheynst
 Ecole Polytechnique Federale de Lausanne (EPFL), Switzerland
 
