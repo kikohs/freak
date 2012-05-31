@@ -40,7 +40,7 @@
 
 using namespace cv;
 
-// binary: 10000000 => char: 128
+// binary: 10000000 => char: 128 or hex: 0x80
 static const __m128i binMask = _mm_set_epi8(0x80, 0x80, 0x80,
                                             0x80, 0x80, 0x80,
                                             0x80, 0x80, 0x80,
@@ -244,10 +244,13 @@ int FreakDescriptorExtractor::descriptorType() const {
 }
 
 void FreakDescriptorExtractor::computeImpl( const Mat& image, std::vector<KeyPoint>& keypoints, Mat& descriptors ) const {
-     register __m128i operand1;
-     register __m128i operand2;
-     register __m128i workReg;
-     register __m128i result128;
+
+#ifdef USE_SSE
+    register __m128i operand1;
+    register __m128i operand2;
+    register __m128i workReg;
+    register __m128i result128;
+#endif
         
     Mat imgIntegral;
     integral(image, imgIntegral);
@@ -318,7 +321,11 @@ void FreakDescriptorExtractor::computeImpl( const Mat& image, std::vector<KeyPoi
     if( !m_extAll ) {
         //extract the best comparisons only
         descriptors = cv::Mat::zeros(keypoints.size(),kNB_PAIRS/8, CV_8U);
-        __m128i* ptr = (__m128i*) (descriptors.data+(keypoints.size()-1)*descriptors.step[0]);
+#ifndef USE_SSE
+        std::bitset<kNB_PAIRS>* ptr= (std::bitset<kNB_PAIRS>*) (descriptors.data+(keypoints.size()-1)*descriptors.step[0]);
+#else
+        __m128i* ptr= (__m128i*) (descriptors.data+(keypoints.size()-1)*descriptors.step[0]);
+#endif
         for( size_t k = keypoints.size(); k--; ) {
             // estimate orientation (gradient)
             if( !m_orientationNormalized ) {
@@ -327,12 +334,12 @@ void FreakDescriptorExtractor::computeImpl( const Mat& image, std::vector<KeyPoi
             }
             else {
                 // get the points intensity value in the un-rotated pattern
-                for( size_t i = kNB_POINTS; i--; ) {
+                for( int i = kNB_POINTS; i--; ) {
                     pointsValue[i] = meanIntensity(image, imgIntegral, keypoints[k].pt.x,keypoints[k].pt.y, kpScaleIdx[k], 0, i);
                 }
                 direction0 = 0;
                 direction1 = 0;
-                for( size_t m = 45; m--; ) {
+                for( int m = 45; m--; ) {
                     //iterate through the orientation pairs
                     const int delta = (pointsValue[ m_orientationPairs[m].i ]-pointsValue[ m_orientationPairs[m].j ]);
                     direction0 += delta*(m_orientationPairs[m].weight_dx)/2048;
@@ -348,9 +355,16 @@ void FreakDescriptorExtractor::computeImpl( const Mat& image, std::vector<KeyPoi
                     thetaIdx -= kNB_ORIENTATION;
             }
             // extract descriptor at the computed orientation
-            for( size_t i = kNB_POINTS; i--; ) {
-                pointsValue[i]=meanIntensity(image, imgIntegral, keypoints[k].pt.x,keypoints[k].pt.y, kpScaleIdx[k], thetaIdx, i);
+            for( int i = kNB_POINTS; i--; ) {
+                pointsValue[i] = meanIntensity(image, imgIntegral, keypoints[k].pt.x,keypoints[k].pt.y, kpScaleIdx[k], thetaIdx, i);
             }
+
+#ifndef USE_SSE
+            for( int m = kNB_PAIRS; m--; ) {
+                ptr->set(m, pointsValue[m_descriptionPairs[m].i]>  pointsValue[m_descriptionPairs[m].j ] );
+            }
+            --ptr;
+#else
             // extracting descriptor by blocks of 128 bits using SSE instructions
             // note that comparisons order is modified in each block (but first 128 comparisons remain globally the same-->does not affect the 128,384 bits segmanted matching strategy)
             int cnt(0);
@@ -377,6 +391,7 @@ void FreakDescriptorExtractor::computeImpl( const Mat& image, std::vector<KeyPoi
                 ++ptr;
             }
             ptr-=8;
+#endif
         }
     }
     else { // extract all possible comparisons for selection

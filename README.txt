@@ -34,6 +34,12 @@ cmake -DCMAKE_INSTALL_PREFIX=/Users/YourName/path/toFolder/ -DOpenCV_DIR=/Users/
 
 cmake -DCMAKE_INSTALL_PREFIX=/Users/YourName/path/toFolder/ -DOpenCV_DIR=/Users/YourName/path/to/OpenCv/ -DBUILD_DEMO=OFF ..
 
+### NO USE OF SSE3
+
+- SET USE_SEE=OFF
+
+cmake -DCMAKE_INSTALL_PREFIX=/Users/YourName/path/toFolder/ -DOpenCV_DIR=/Users/YourName/path/to/OpenCv/ -DUSE_SSE=OFF ..
+
 make
 (sudo) make install
 

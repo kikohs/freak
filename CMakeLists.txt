@@ -14,9 +14,6 @@ set( freak_SOVERSION ${freak_LIB_MAJOR_VERSION} )
 #    FIND_PACKAGE(OpenCV REQUIRED core highgui)
 find_package(OpenCV REQUIRED)
 
-add_definitions(
-	-DHAVE_CONFIG_H
-)
 include_directories( ${CMAKE_CURRENT_SOURCE_DIR} )
 include_directories( ${CMAKE_CURRENT_BINARY_DIR} )
 
@@ -28,6 +25,13 @@ set( INCLUDE_INSTALL_DIR ${CMAKE_INSTALL_PREFIX}/include CACHE PATH "Installatio
 
 option( BUILD_SHARED_LIBS "Build shared libraries" ON )
 option( BUILD_DEMO "Build demo" ON )
+option( USE_SSE "Use SSE3" ON )
+
+if( USE_SSE )
+    add_definitions(
+        -DUSE_SSE
+    )
+endif()
 
 if( CMAKE_COMPILER_IS_GNUCXX )
 

@@ -76,7 +76,11 @@ int main( int argc, char** argv ) {
 	// The standard Hamming distance can be used such as
 	// BruteForceMatcher<Hamming> matcher;
 	// or the proposed cascade of hamming distance
+#ifdef USE_SSE
 	BruteForceMatcher< HammingSeg<30,4> > matcher;
+#else
+    BruteForceMatcher<Hamming> matcher;
+#endif
 	
     // detect
     double t = (double)getTickCount();
