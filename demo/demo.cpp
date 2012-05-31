@@ -44,44 +44,44 @@ static const std::string kResPath = "../../resources/";
 int main( int argc, char** argv ) {
     // check http://opencv.itseez.com/doc/tutorials/features2d/table_of_content_features2d/table_of_content_features2d.html
     // for OpenCV general detection/matching framework details
-	
-	// Load images
+
+    // Load images
     Mat imgA = imread(kResPath + "images/graf/img1.ppm", CV_LOAD_IMAGE_GRAYSCALE );
     if( !imgA.data ) {
         std::cout<< " --(!) Error reading images " << std::endl;
-		return -1;
-	}
-	
+        return -1;
+    }
+
     Mat imgB = imread(kResPath + "images/graf/img3.ppm", CV_LOAD_IMAGE_GRAYSCALE );
     if( !imgA.data ) {
         std::cout << " --(!) Error reading images " << std::endl;
-		return -1;
-	}
-	
+        return -1;
+    }
+
     std::vector<KeyPoint> keypointsA, keypointsB;
-	Mat descriptorsA, descriptorsB;
-    
-	std::vector< DMatch>   matches;
-    
-	// DETECTION
+    Mat descriptorsA, descriptorsB;
+
+    std::vector< DMatch>   matches;
+
+    // DETECTION
     // Any openCV detector such as
-	SurfFeatureDetector detector(2000,4);
-	
+    SurfFeatureDetector detector(2000,4);
+
     // DESCRIPTOR
-	// Our propose FREAK descriptor
-	// (roation invariance, scale invariance, pattern radius corresponding to SMALLEST_KP_SIZE, number of octaves, file containing list of selected pairs)
-	FreakDescriptorExtractor extractor(true,true,22,4, kResPath + "selected_pairs.bin");	
-	
+    // Our propose FREAK descriptor
+    // (roation invariance, scale invariance, pattern radius corresponding to SMALLEST_KP_SIZE, number of octaves, file containing list of selected pairs)
+    FreakDescriptorExtractor extractor(true,true,22,4, kResPath + "selected_pairs.bin");
+
     // MATCHER
-	// The standard Hamming distance can be used such as
-	// BruteForceMatcher<Hamming> matcher;
-	// or the proposed cascade of hamming distance
+    // The standard Hamming distance can be used such as
+    // BruteForceMatcher<Hamming> matcher;
+    // or the proposed cascade of hamming distance
 #ifdef USE_SSE
-	BruteForceMatcher< HammingSeg<30,4> > matcher;
+    BruteForceMatcher< HammingSeg<30,4> > matcher;
 #else
     BruteForceMatcher<Hamming> matcher;
 #endif
-	
+
     // detect
     double t = (double)getTickCount();
     detector.detect( imgA, keypointsA );
@@ -101,7 +101,6 @@ int main( int argc, char** argv ) {
     matcher.match(descriptorsA, descriptorsB, matches);
     t = ((double)getTickCount() - t)/getTickFrequency();
     std::cout << "matching time [s]: " << t << std::endl;
-
 
     // Draw matches
     Mat imgMatch;
