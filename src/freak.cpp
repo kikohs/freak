@@ -1,21 +1,21 @@
 //      freak.cpp
-//      
+//
 //		Copyright (C) 2011-2012  Signal processing laboratory 2, EPFL,
 //	    Raphael Ortiz (raphael.ortiz@a3.epfl.ch),
 //      Kirell Benzi (kirell.benzi@epfl.ch),
-//		Alexandre Alahi (alexandre.alahi@epfl.ch) 
+//		Alexandre Alahi (alexandre.alahi@epfl.ch)
 //		and Pierre Vandergheynst (pierre.vandergheynst@epfl.ch)
-//      
+//
 //      This program is free software; you can redistribute it and/or modify
 //      it under the terms of the GNU General Public License as published by
 //      the Free Software Foundation; either version 3 of the License, or
 //      (at your option) any later version.
-//      
+//
 //      This program is distributed in the hope that it will be useful,
 //      but WITHOUT ANY WARRANTY; without even the implied warranty of
 //      MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 //      GNU General Public License for more details.
-//      
+//
 //      You should have received a copy of the GNU General Public License
 //      along with this program; if not, write to the Free Software
 //      Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston,
@@ -127,13 +127,13 @@ void FreakDescriptorExtractor::buildPattern( const std::string& filename )
                 for( int k = 0 ; k < n[i]; ++k ) {
                     beta = M_PI/n[i] * (i%2); // orientation offset so that groups of points on each circles are staggered
                     alpha = double(k)* 2*M_PI/double(n[i])+beta+theta;
-                    
+
                     // add the point to the look-up table
                     PatternPoint& point = m_patternLookup[ scaleIdx*kNB_ORIENTATION*kNB_POINTS+orientationIdx*kNB_POINTS+pointIdx ];
                     point.x = radius[i] * cos(alpha) * scalingFactor * m_patternScale;
                     point.y = radius[i] * sin(alpha) * scalingFactor * m_patternScale;
                     point.sigma = sigma[i] * scalingFactor * m_patternScale;
-                    
+
                     // adapt the sizeList if necessary
                     const int sizeMax = ceil((radius[i]+sigma[i])*scalingFactor*m_patternScale) + 1;
                     if( m_patternSizes[scaleIdx] < sizeMax )
@@ -144,28 +144,28 @@ void FreakDescriptorExtractor::buildPattern( const std::string& filename )
             }
         }
     }
-    
+
     // build the list of orientation pairs
     m_orientationPairs[0].i=0; m_orientationPairs[0].j=3; m_orientationPairs[1].i=1; m_orientationPairs[1].j=4; m_orientationPairs[2].i=2; m_orientationPairs[2].j=5;
     m_orientationPairs[3].i=0; m_orientationPairs[3].j=2; m_orientationPairs[4].i=1; m_orientationPairs[4].j=3; m_orientationPairs[5].i=2; m_orientationPairs[5].j=4;
     m_orientationPairs[6].i=3; m_orientationPairs[6].j=5; m_orientationPairs[7].i=4; m_orientationPairs[7].j=0; m_orientationPairs[8].i=5; m_orientationPairs[8].j=1;
-    
+
     m_orientationPairs[9].i=6; m_orientationPairs[9].j=9; m_orientationPairs[10].i=7; m_orientationPairs[10].j=10; m_orientationPairs[11].i=8; m_orientationPairs[11].j=11;
     m_orientationPairs[12].i=6; m_orientationPairs[12].j=8; m_orientationPairs[13].i=7; m_orientationPairs[13].j=9; m_orientationPairs[14].i=8; m_orientationPairs[14].j=10;
     m_orientationPairs[15].i=9; m_orientationPairs[15].j=11; m_orientationPairs[16].i=10; m_orientationPairs[16].j=6; m_orientationPairs[17].i=11; m_orientationPairs[17].j=7;
-    
+
     m_orientationPairs[18].i=12; m_orientationPairs[18].j=15; m_orientationPairs[19].i=13; m_orientationPairs[19].j=16; m_orientationPairs[20].i=14; m_orientationPairs[20].j=17;
     m_orientationPairs[21].i=12; m_orientationPairs[21].j=14; m_orientationPairs[22].i=13; m_orientationPairs[22].j=15; m_orientationPairs[23].i=14; m_orientationPairs[23].j=16;
     m_orientationPairs[24].i=15; m_orientationPairs[24].j=17; m_orientationPairs[25].i=16; m_orientationPairs[25].j=12; m_orientationPairs[26].i=17; m_orientationPairs[26].j=13;
-    
+
     m_orientationPairs[27].i=18; m_orientationPairs[27].j=21; m_orientationPairs[28].i=19; m_orientationPairs[28].j=22; m_orientationPairs[29].i=20; m_orientationPairs[29].j=23;
     m_orientationPairs[30].i=18; m_orientationPairs[30].j=20; m_orientationPairs[31].i=19; m_orientationPairs[31].j=21; m_orientationPairs[32].i=20; m_orientationPairs[32].j=22;
     m_orientationPairs[33].i=21; m_orientationPairs[33].j=23; m_orientationPairs[34].i=22; m_orientationPairs[34].j=18; m_orientationPairs[35].i=23; m_orientationPairs[35].j=19;
-    
+
     m_orientationPairs[36].i=24; m_orientationPairs[36].j=27; m_orientationPairs[37].i=25; m_orientationPairs[37].j=28; m_orientationPairs[38].i=26; m_orientationPairs[38].j=29;
     m_orientationPairs[39].i=30; m_orientationPairs[39].j=33; m_orientationPairs[40].i=31; m_orientationPairs[40].j=34; m_orientationPairs[41].i=32; m_orientationPairs[41].j=35;
     m_orientationPairs[42].i=36; m_orientationPairs[42].j=39; m_orientationPairs[43].i=37; m_orientationPairs[43].j=40; m_orientationPairs[44].i=38; m_orientationPairs[44].j=41;
-    
+
     for( unsigned m = kNB_ORIENPAIRS; m--; ) {
         const float dx = m_patternLookup[m_orientationPairs[m].i].x-m_patternLookup[m_orientationPairs[m].j].x;
         const float dy = m_patternLookup[m_orientationPairs[m].i].y-m_patternLookup[m_orientationPairs[m].j].y;
@@ -173,7 +173,7 @@ void FreakDescriptorExtractor::buildPattern( const std::string& filename )
         m_orientationPairs[m].weight_dx = int((dx/(norm_sq))*4096.0+0.5);
         m_orientationPairs[m].weight_dy = int((dy/(norm_sq))*4096.0+0.5);
     }
-    
+
     // build the list of description pairs
     std::vector<DescriptionPair> allPairs;
     for( unsigned int i = 1; i < (unsigned int)kNB_POINTS; ++i ) {
@@ -183,7 +183,7 @@ void FreakDescriptorExtractor::buildPattern( const std::string& filename )
             allPairs.push_back(pair);
         }
     }
-    
+
     // load idxs of the selected 512 best pairs
     int idxBestPairs[kNB_PAIRS];
     if( filename.size() != 0 ) {
@@ -199,7 +199,7 @@ void FreakDescriptorExtractor::buildPattern( const std::string& filename )
     else {
         std::memcpy( idxBestPairs, kTmp, sizeof(idxBestPairs) );
     }
-    
+
     // selected pairs
     for( int i = 0; i < kNB_PAIRS; ++i )
          m_descriptionPairs[i] = allPairs[idxBestPairs[i]];
@@ -210,27 +210,27 @@ void FreakDescriptorExtractor::drawPattern()
 {
     Mat pattern = Mat::zeros(1000, 1000, CV_8UC3) + Scalar(255,255,255);
     //~ namedWindow( "FreakDescriptorExtractor pattern", CV_WINDOW_KEEPRATIO );
-    
+
     int sFac = 500 / m_patternScale;
-    
+
     for( int n = 0; n < kNB_POINTS; ++n ) {
         PatternPoint& pt = m_patternLookup[n];
         circle(pattern, Point( pt.x*sFac,pt.y*sFac)+Point(500,500), pt.sigma*sFac, Scalar(0,0,255),2);
         //~ rectangle(pattern, Point( (pt.x-pt.sigma)*sFac,(pt.y-pt.sigma)*sFac)+Point(500,500), Point( (pt.x+pt.sigma)*sFac,(pt.y+pt.sigma)*sFac)+Point(500,500), Scalar(0,0,255),2);
-        
+
         circle(pattern, Point( pt.x*sFac,pt.y*sFac)+Point(500,500), 1, Scalar(0,0,0),3);
         std::ostringstream oss;
         oss << n;
         putText( pattern, oss.str(), Point( pt.x*sFac,pt.y*sFac)+Point(500,500), FONT_HERSHEY_SIMPLEX,0.5, Scalar(0,0,0), 1);
     }
-    
+
     //~ for(size_t n=384; n<512 ;++n)
-	//~ {
+    //~ {
         //~ PatternPoint& pta=patternLookup[ descriptionPairs[n].i ];
         //~ PatternPoint& ptb=patternLookup[ descriptionPairs[n].j ];
         //~ line( pattern, Point( pta.x*sFac,pta.y*sFac)+Point(500,500) , Point( ptb.x*sFac,ptb.y*sFac)+Point(500,500), Scalar(255,0,0) );
     //~ }
-    
+
     imshow( "FreakDescriptorExtractor pattern", pattern );
     waitKey(0);
 }
@@ -251,7 +251,7 @@ void FreakDescriptorExtractor::computeImpl( const Mat& image, std::vector<KeyPoi
     register __m128i workReg;
     register __m128i result128;
 #endif
-        
+
     Mat imgIntegral;
     integral(image, imgIntegral);
     std::vector<int> kpScaleIdx(keypoints.size()); // used to save pattern scale index corresponding to each keypoints
@@ -262,7 +262,7 @@ void FreakDescriptorExtractor::computeImpl( const Mat& image, std::vector<KeyPoi
     int thetaIdx(0);
     int direction0;
     int direction1;
-    
+
     // compute the scale index corresponding to the keypoint size and remove keypoints close to the border
     if( m_scaleNormalized ) {
         for( size_t k = keypoints.size(); k--; ) {
@@ -287,7 +287,7 @@ void FreakDescriptorExtractor::computeImpl( const Mat& image, std::vector<KeyPoi
                 }
                 Mat imTmp;
                 cvtColor( image, imTmp, CV_GRAY2RGB );
-                
+
                 for(size_t n=0; n < kNB_POINTS;++n)
                 {
                     PatternPoint& pt=patternLookup[ kpScaleIdx[k]*kNB_ORIENTATION*kNB_POINTS  + n ];
@@ -316,7 +316,7 @@ void FreakDescriptorExtractor::computeImpl( const Mat& image, std::vector<KeyPoi
             }
         }
     }
-     
+
     // allocate descriptor memory, estimate orientations, extract descriptors
     if( !m_extAll ) {
         //extract the best comparisons only
@@ -375,15 +375,15 @@ void FreakDescriptorExtractor::computeImpl( const Mat& image, std::vector<KeyPoi
                                           pointsValue[m_descriptionPairs[cnt+4].i],pointsValue[m_descriptionPairs[cnt+5].i],pointsValue[m_descriptionPairs[cnt+6].i],pointsValue[m_descriptionPairs[cnt+7].i],
                                           pointsValue[m_descriptionPairs[cnt+8].i],pointsValue[m_descriptionPairs[cnt+9].i],pointsValue[m_descriptionPairs[cnt+10].i],pointsValue[m_descriptionPairs[cnt+11].i],
                                           pointsValue[m_descriptionPairs[cnt+12].i],pointsValue[m_descriptionPairs[cnt+13].i],pointsValue[m_descriptionPairs[cnt+14].i],pointsValue[m_descriptionPairs[cnt+15].i]);
-                                          
+
                     operand2 = _mm_set_epi8(pointsValue[m_descriptionPairs[cnt].j],pointsValue[m_descriptionPairs[cnt+1].j],pointsValue[m_descriptionPairs[cnt+2].j],pointsValue[m_descriptionPairs[cnt+3].j],
                                           pointsValue[m_descriptionPairs[cnt+4].j],pointsValue[m_descriptionPairs[cnt+5].j],pointsValue[m_descriptionPairs[cnt+6].j],pointsValue[m_descriptionPairs[cnt+7].j],
                                           pointsValue[m_descriptionPairs[cnt+8].j],pointsValue[m_descriptionPairs[cnt+9].j],pointsValue[m_descriptionPairs[cnt+10].j],pointsValue[m_descriptionPairs[cnt+11].j],
                                           pointsValue[m_descriptionPairs[cnt+12].j],pointsValue[m_descriptionPairs[cnt+13].j],pointsValue[m_descriptionPairs[cnt+14].j],pointsValue[m_descriptionPairs[cnt+15].j]);
-                
+
                     workReg = _mm_min_epu8(operand1, operand2);//emulated "greater than" for UNSIGNED int
                     workReg = _mm_cmpeq_epi8(workReg, operand2);//emulated "greater than" for UNSIGNED int
-                    
+
                     workReg = _mm_and_si128(_mm_srli_epi16(binMask, m), workReg);//merge the last 16 bits with the 128bits std::vector until full
                     result128 = _mm_or_si128(result128, workReg);
                 }
@@ -432,7 +432,7 @@ void FreakDescriptorExtractor::computeImpl( const Mat& image, std::vector<KeyPoi
                 pointsValue[i] = meanIntensity(image, imgIntegral, keypoints[k].pt.x,
                                              keypoints[k].pt.y, kpScaleIdx[k], thetaIdx, i);
             }
-            
+
             int cnt(0);
             for( int i = 1; i < kNB_POINTS; ++i ) {
                 //(generate all the pairs)
@@ -496,7 +496,7 @@ uchar FreakDescriptorExtractor::meanIntensity( const cv::Mat& image, const cv::M
     const int y_top = int(yf-radius+0.5);
     const int x_right = int(xf+radius+1.5);//integral image is 1px wider
     const int y_bottom = int(yf+radius+1.5);//integral image is 1px higher
-    
+
     ret_val = integral.at<int>(y_bottom,x_right);//bottom right corner
     ret_val -= integral.at<int>(y_bottom,x_left);
     ret_val += integral.at<int>(y_top,x_left);
@@ -523,10 +523,10 @@ void FreakDescriptorExtractor::selectPairs(const std::vector<Mat>& images,
     }
 
     std::cout << "number of keypoints: " << descriptors.rows << std::endl;
-    
+
     //descriptor in floating point format (each bit is a float)
     Mat descriptorsFloat = Mat::zeros(descriptors.rows, 903, CV_32F);
-    
+
     std::bitset<1024>* ptr = (std::bitset<1024>*) (descriptors.data+(descriptors.rows-1)*descriptors.step[0]);
     for( size_t m = descriptors.rows; m--; ) {
         for( size_t n = 903; n--; ) {
@@ -535,16 +535,16 @@ void FreakDescriptorExtractor::selectPairs(const std::vector<Mat>& images,
         }
         --ptr;
     }
-    
+
     std::vector<PairStat> pairStat;
     for( size_t n = 903; n--; ) {
         // the higher the variance, the better --> mean = 0.5
         PairStat tmp = { fabs( mean(descriptorsFloat.col(n))[0]-0.5 ) ,n};
         pairStat.push_back(tmp);
     }
-    
+
     std::sort( pairStat.begin(),pairStat.end(), sortMean() );
-    
+
     std::vector<PairStat> bestPairs;
     for( int m = 0; m < 903; ++m ) {
         std::cout << m << ":" << bestPairs.size() << " " << std::flush;
@@ -556,14 +556,14 @@ void FreakDescriptorExtractor::selectPairs(const std::vector<Mat>& images,
             double corr(0);
             // compute correlation between 2 pairs
             corr = fabs(compareHist(descriptorsFloat.col(idxA), descriptorsFloat.col(idxB), CV_COMP_CORREL));
-            
+
             if( corr > corrMax ) {
                 corrMax = corr;
                 if( corrMax >= corrTresh )
                     break;
             }
         }
-        
+
         if( corrMax < corrTresh/*0.7*/ )
             bestPairs.push_back(pairStat[m]);
 
@@ -572,7 +572,7 @@ void FreakDescriptorExtractor::selectPairs(const std::vector<Mat>& images,
             break;
         }
     }
-    
+
     if( (int)bestPairs.size() >= kNB_PAIRS ) {
 
         int idxBestPairs[kNB_PAIRS];
@@ -591,7 +591,7 @@ void FreakDescriptorExtractor::selectPairs(const std::vector<Mat>& images,
     }
     else {
         std::cout << "correlation treshold too small (restrictive)" << std::endl;
-    }  
+    }
     m_extAll=false;
 }
 

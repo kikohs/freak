@@ -84,61 +84,61 @@ int main( int argc, char** argv ) {
 	
     // detect
     double t = (double)getTickCount();
-	detector.detect( imgA, keypointsA );
-	detector.detect( imgB, keypointsB );
-	t = ((double)getTickCount() - t)/getTickFrequency();
+    detector.detect( imgA, keypointsA );
+    detector.detect( imgB, keypointsB );
+    t = ((double)getTickCount() - t)/getTickFrequency();
     std::cout << "detection time [s]: " << t/1.0 << std::endl;
-    
+
     // extract
     t = (double)getTickCount();
-	extractor.compute( imgA, keypointsA, descriptorsA );
-	extractor.compute( imgB, keypointsB, descriptorsB );
+    extractor.compute( imgA, keypointsA, descriptorsA );
+    extractor.compute( imgB, keypointsB, descriptorsB );
     t = ((double)getTickCount() - t)/getTickFrequency();
     std::cout << "extraction time [s]: " << t << std::endl;
-    
+
     // match
-    t = (double)getTickCount();    
-	matcher.match(descriptorsA, descriptorsB, matches);
+    t = (double)getTickCount();
+    matcher.match(descriptorsA, descriptorsB, matches);
     t = ((double)getTickCount() - t)/getTickFrequency();
     std::cout << "matching time [s]: " << t << std::endl;
 
 
-	// Draw matches
-	Mat imgMatch;
-	drawMatches( imgA, keypointsA, imgB, keypointsB, matches, imgMatch);
-	
+    // Draw matches
+    Mat imgMatch;
+    drawMatches( imgA, keypointsA, imgB, keypointsB, matches, imgMatch);
+
 
     namedWindow("matches", CV_WINDOW_KEEPRATIO);
     imshow("matches", imgMatch);
-	waitKey(0);
-	
-	/////////////////////////////////////////////////
-	//
-	//PAIRS SELECTION
-	//FREAK is available with a set of pairs learned off-line. Researchers can run a training process to learn their own set of pair.
-	//For more details read section 4.2 in:
-	//A. Alahi, R. Ortiz, and P. Vandergheynst. FREAK: Fast Retina Keypoint. In IEEE Conference on Computer Vision and Pattern Recognition, 2012.
+    waitKey(0);
 
-	//We notice that for keypoint matching applications, image content has little effect on the selected pairs unless very specific
-	//what does matter is the detector type (blobs, corners,...) and the options used (scale/rotation invariance,...)
-	//reduce corrTresh if not enough pairs are selected (43 points --> 903 possible pairs)
-	// Un-comment the following lines if you want to run the training process to learn the best pairs:
-	/*
+    /////////////////////////////////////////////////
+    //
+    //PAIRS SELECTION
+    //FREAK is available with a set of pairs learned off-line. Researchers can run a training process to learn their own set of pair.
+    //For more details read section 4.2 in:
+    //A. Alahi, R. Ortiz, and P. Vandergheynst. FREAK: Fast Retina Keypoint. In IEEE Conference on Computer Vision and Pattern Recognition, 2012.
+
+    //We notice that for keypoint matching applications, image content has little effect on the selected pairs unless very specific
+    //what does matter is the detector type (blobs, corners,...) and the options used (scale/rotation invariance,...)
+    //reduce corrTresh if not enough pairs are selected (43 points --> 903 possible pairs)
+    // Un-comment the following lines if you want to run the training process to learn the best pairs:
+    /*
     std::vector<string> filenames;
     filenames.push_back(kResPath + "images/train/1.jpg");
     filenames.push_back(kResPath + "images/train/2.jpg");
-	
+
     std::vector<Mat> images(filenames.size());
     std::vector< std::vector<KeyPoint> > keypoints(filenames.size());
-	
+
     for( size_t i = 0; i < filenames.size(); ++i ) {
-		images[i] = imread( filenames[i].c_str(), CV_LOAD_IMAGE_GRAYSCALE );
+        images[i] = imread( filenames[i].c_str(), CV_LOAD_IMAGE_GRAYSCALE );
         if( !images[i].data ) {
             std::cout<< " --(!) Error reading images " << std::endl;
-			return -1;
-		}
-		detector.detect( images[i], keypoints[i] );
-	}
+            return -1;
+        }
+        detector.detect( images[i], keypoints[i] );
+    }
     extractor.selectPairs(images, keypoints, kResPath + "selected_pairs2", 0.7);
-	*/
+    */
 }
