@@ -39,7 +39,7 @@ if( CMAKE_COMPILER_IS_GNUCXX )
         set( CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O2" )
     endif()
 
-    set( CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -mssse3" )
+    set( CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -mssse3 -fvisibility=hidden" )
     set( CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall -mssse3" )
 endif()
 if( CMAKE_COMPILER_IS_GNUCXX AND BUILD_SHARED_LIBS )

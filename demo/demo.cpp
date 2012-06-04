@@ -1,29 +1,37 @@
-//      demo.cpp
+//  demo.cpp
 //
-//		Here is an example on how to use the descriptor presented in the following paper:
-//		A. Alahi, R. Ortiz, and P. Vandergheynst. FREAK: Fast Retina Keypoint. In IEEE Conference on Computer Vision and Pattern Recognition, 2012.
+//	Here is an example on how to use the descriptor presented in the following paper:
+//	A. Alahi, R. Ortiz, and P. Vandergheynst. FREAK: Fast Retina Keypoint. In IEEE Conference on Computer Vision and Pattern Recognition, 2012.
 //
+//	Copyright (C) 2011-2012  Signal processing laboratory 2, EPFL,
+//	Raphael Ortiz (raphael.ortiz@a3.epfl.ch),
+//	Kirell Benzi (kirell.benzi@epfl.ch)
+//	Alexandre Alahi (alexandre.alahi@epfl.ch)
+//	and Pierre Vandergheynst (pierre.vandergheynst@epfl.ch)
 //
-//		Copyright (C) 2011-2012  Signal processing laboratory 2, EPFL,
-//	    Raphael Ortiz (raphael.ortiz@a3.epfl.ch),
-//		Kirell Benzi (kirell.benzi@epfl.ch)
-//		Alexandre Alahi (alexandre.alahi@epfl.ch)
-//		and Pierre Vandergheynst (pierre.vandergheynst@epfl.ch)
+//  Redistribution and use in source and binary forms, with or without modification,
+//  are permitted provided that the following conditions are met:
 //
-//      This program is free software; you can redistribute it and/or modify
-//      it under the terms of the GNU General Public License as published by
-//      the Free Software Foundation; either version 3 of the License, or
-//      (at your option) any later version.
+//   * Redistribution's of source code must retain the above copyright notice,
+//     this list of conditions and the following disclaimer.
 //
-//      This program is distributed in the hope that it will be useful,
-//      but WITHOUT ANY WARRANTY; without even the implied warranty of
-//      MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-//      GNU General Public License for more details.
+//   * Redistribution's in binary form must reproduce the above copyright notice,
+//     this list of conditions and the following disclaimer in the documentation
+//     and/or other materials provided with the distribution.
 //
-//      You should have received a copy of the GNU General Public License
-//      along with this program; if not, write to the Free Software
-//      Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston,
-//      MA 02110-1301, USA.
+//   * The name of the copyright holders may not be used to endorse or promote products
+//     derived from this software without specific prior written permission.
+//
+//  This software is provided by the copyright holders and contributors "as is" and
+//  any express or implied warranties, including, but not limited to, the implied
+//  warranties of merchantability and fitness for a particular purpose are disclaimed.
+//  In no event shall the Intel Corporation or contributors be liable for any direct,
+//  indirect, incidental, special, exemplary, or consequential damages
+//  (including, but not limited to, procurement of substitute goods or services;
+//  loss of use, data, or profits; or business interruption) however caused
+//  and on any theory of liability, whether in contract, strict liability,
+//  or tort (including negligence or otherwise) arising in any way out of
+//  the use of this software, even if advised of the possibility of such damage.
 
 #include <iostream>
 #include <string>
@@ -70,7 +78,8 @@ int main( int argc, char** argv ) {
     // DESCRIPTOR
     // Our propose FREAK descriptor
     // (roation invariance, scale invariance, pattern radius corresponding to SMALLEST_KP_SIZE, number of octaves, file containing list of selected pairs)
-    FreakDescriptorExtractor extractor(true,true,22,4, kResPath + "selected_pairs.bin");
+    // FreakDescriptorExtractor extractor(true, true, 22, 4, kResPath + "selected_pairs.bin");
+    FreakDescriptorExtractor extractor(true, true, 22, 4, "");
 
     // MATCHER
     // The standard Hamming distance can be used such as
@@ -104,8 +113,7 @@ int main( int argc, char** argv ) {
 
     // Draw matches
     Mat imgMatch;
-    drawMatches( imgA, keypointsA, imgB, keypointsB, matches, imgMatch);
-
+    drawMatches(imgA, keypointsA, imgB, keypointsB, matches, imgMatch);
 
     namedWindow("matches", CV_WINDOW_KEEPRATIO);
     imshow("matches", imgMatch);

@@ -1,25 +1,34 @@
-//      freak.cpp
+//  freak.cpp
 //
-//		Copyright (C) 2011-2012  Signal processing laboratory 2, EPFL,
-//	    Raphael Ortiz (raphael.ortiz@a3.epfl.ch),
-//      Kirell Benzi (kirell.benzi@epfl.ch),
-//		Alexandre Alahi (alexandre.alahi@epfl.ch)
-//		and Pierre Vandergheynst (pierre.vandergheynst@epfl.ch)
+//	Copyright (C) 2011-2012  Signal processing laboratory 2, EPFL,
+//	Raphael Ortiz (raphael.ortiz@a3.epfl.ch),
+//	Kirell Benzi (kirell.benzi@epfl.ch)
+//	Alexandre Alahi (alexandre.alahi@epfl.ch)
+//	and Pierre Vandergheynst (pierre.vandergheynst@epfl.ch)
 //
-//      This program is free software; you can redistribute it and/or modify
-//      it under the terms of the GNU General Public License as published by
-//      the Free Software Foundation; either version 3 of the License, or
-//      (at your option) any later version.
+//  Redistribution and use in source and binary forms, with or without modification,
+//  are permitted provided that the following conditions are met:
 //
-//      This program is distributed in the hope that it will be useful,
-//      but WITHOUT ANY WARRANTY; without even the implied warranty of
-//      MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-//      GNU General Public License for more details.
+//   * Redistribution's of source code must retain the above copyright notice,
+//     this list of conditions and the following disclaimer.
 //
-//      You should have received a copy of the GNU General Public License
-//      along with this program; if not, write to the Free Software
-//      Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston,
-//      MA 02110-1301, USA.
+//   * Redistribution's in binary form must reproduce the above copyright notice,
+//     this list of conditions and the following disclaimer in the documentation
+//     and/or other materials provided with the distribution.
+//
+//   * The name of the copyright holders may not be used to endorse or promote products
+//     derived from this software without specific prior written permission.
+//
+//  This software is provided by the copyright holders and contributors "as is" and
+//  any express or implied warranties, including, but not limited to, the implied
+//  warranties of merchantability and fitness for a particular purpose are disclaimed.
+//  In no event shall the Intel Corporation or contributors be liable for any direct,
+//  indirect, incidental, special, exemplary, or consequential damages
+//  (including, but not limited to, procurement of substitute goods or services;
+//  loss of use, data, or profits; or business interruption) however caused
+//  and on any theory of liability, whether in contract, strict liability,
+//  or tort (including negligence or otherwise) arising in any way out of
+//  the use of this software, even if advised of the possibility of such damage.
 
 #include <fstream>
 #include <stdlib.h>
@@ -30,6 +39,7 @@
 #include <algorithm>
 #include <iomanip>
 #include <tmmintrin.h>
+#include <string.h>
 
 #include <opencv2/features2d/features2d.hpp>
 #include <opencv2/core/core.hpp>
@@ -194,15 +204,20 @@ void FreakDescriptorExtractor::buildPattern( const std::string& filename )
         }
         else {
             std::cerr << "error while reading pairs file: " << filename << std::endl;
+            std::cerr << "using pre-computed best pairs" << std::endl;
+            memcpy( idxBestPairs, kTmp, sizeof(idxBestPairs) );
         }
     }
     else {
-        std::memcpy( idxBestPairs, kTmp, sizeof(idxBestPairs) );
+        memcpy( idxBestPairs, kTmp, sizeof(idxBestPairs) );
     }
 
     // selected pairs
-    for( int i = 0; i < kNB_PAIRS; ++i )
+    for( int i = 0; i < kNB_PAIRS; ++i ) //{
          m_descriptionPairs[i] = allPairs[idxBestPairs[i]];
+//         std::cout << (unsigned int)m_descriptionPairs[i].i << ',' << (int)m_descriptionPairs[i].j;
+//    }
+//    std::cout << std::endl;
 }
 
 // create an image showing the brisk pattern
@@ -271,10 +286,10 @@ void FreakDescriptorExtractor::computeImpl( const Mat& image, std::vector<KeyPoi
             if( kpScaleIdx[k] >= kNB_SCALES )
                 kpScaleIdx[k] = kNB_SCALES-1;
 
-            if( keypoints[k].pt.x<=m_patternSizes[kpScaleIdx[k]] || //check if the description at this specific position and scale fits inside the image
-                 keypoints[k].pt.y<=m_patternSizes[kpScaleIdx[k]] ||
-                 keypoints[k].pt.x>=image.cols-m_patternSizes[kpScaleIdx[k]] ||
-                 keypoints[k].pt.y>=image.rows-m_patternSizes[kpScaleIdx[k]]
+            if( keypoints[k].pt.x <= m_patternSizes[kpScaleIdx[k]] || //check if the description at this specific position and scale fits inside the image
+                 keypoints[k].pt.y <= m_patternSizes[kpScaleIdx[k]] ||
+                 keypoints[k].pt.x >= image.cols-m_patternSizes[kpScaleIdx[k]] ||
+                 keypoints[k].pt.y >= image.rows-m_patternSizes[kpScaleIdx[k]]
                ) {
                 keypoints.erase(kpBegin+k);
                 kpScaleIdx.erase(ScaleIdxBegin+k);
@@ -304,7 +319,7 @@ void FreakDescriptorExtractor::computeImpl( const Mat& image, std::vector<KeyPoi
         for( size_t k = keypoints.size(); k--; ) {
             kpScaleIdx[k] = scIdx; // equivalent to the formule when the scale is normalized with a constant size of keypoints[k].size=3*SMALLEST_KP_SIZE
             if( kpScaleIdx[k] >= kNB_SCALES ) {
-                kpScaleIdx[k]=kNB_SCALES-1;
+                kpScaleIdx[k] = kNB_SCALES-1;
             }
             if( keypoints[k].pt.x <= m_patternSizes[kpScaleIdx[k]] ||
                 keypoints[k].pt.y <= m_patternSizes[kpScaleIdx[k]] ||
@@ -319,7 +334,7 @@ void FreakDescriptorExtractor::computeImpl( const Mat& image, std::vector<KeyPoi
 
     // allocate descriptor memory, estimate orientations, extract descriptors
     if( !m_extAll ) {
-        //extract the best comparisons only
+        // extract the best comparisons only
         descriptors = cv::Mat::zeros(keypoints.size(),kNB_PAIRS/8, CV_8U);
 #ifndef USE_SSE
         std::bitset<kNB_PAIRS>* ptr= (std::bitset<kNB_PAIRS>*) (descriptors.data+(keypoints.size()-1)*descriptors.step[0]);
@@ -381,10 +396,10 @@ void FreakDescriptorExtractor::computeImpl( const Mat& image, std::vector<KeyPoi
                                           pointsValue[m_descriptionPairs[cnt+8].j],pointsValue[m_descriptionPairs[cnt+9].j],pointsValue[m_descriptionPairs[cnt+10].j],pointsValue[m_descriptionPairs[cnt+11].j],
                                           pointsValue[m_descriptionPairs[cnt+12].j],pointsValue[m_descriptionPairs[cnt+13].j],pointsValue[m_descriptionPairs[cnt+14].j],pointsValue[m_descriptionPairs[cnt+15].j]);
 
-                    workReg = _mm_min_epu8(operand1, operand2);//emulated "greater than" for UNSIGNED int
-                    workReg = _mm_cmpeq_epi8(workReg, operand2);//emulated "greater than" for UNSIGNED int
+                    workReg = _mm_min_epu8(operand1, operand2); // emulated "greater than" for UNSIGNED int
+                    workReg = _mm_cmpeq_epi8(workReg, operand2); // emulated "greater than" for UNSIGNED int
 
-                    workReg = _mm_and_si128(_mm_srli_epi16(binMask, m), workReg);//merge the last 16 bits with the 128bits std::vector until full
+                    workReg = _mm_and_si128(_mm_srli_epi16(binMask, m), workReg); // merge the last 16 bits with the 128bits std::vector until full
                     result128 = _mm_or_si128(result128, workReg);
                 }
                 (*ptr) = result128;
@@ -409,8 +424,8 @@ void FreakDescriptorExtractor::computeImpl( const Mat& image, std::vector<KeyPoi
                 for( int i = kNB_POINTS;i--; )
                     pointsValue[i] = meanIntensity(image, imgIntegral, keypoints[k].pt.x,keypoints[k].pt.y, kpScaleIdx[k], 0, i);
 
-                direction0=0;
-                direction1=0;
+                direction0 = 0;
+                direction1 = 0;
                 for( int m = 45; m--; ) {
                     //iterate through the orientation pairs
                     const int delta = (pointsValue[ m_orientationPairs[m].i ]-pointsValue[ m_orientationPairs[m].j ]);
