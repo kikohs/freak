@@ -28,6 +28,10 @@ cd build
 
 cmake -DCMAKE_INSTALL_PREFIX=/Users/YourName/path/toFolder/ -DOpenCV_DIR=/Users/YourName/path/to/OpenCv/ ..
 
+If you have error with the FindOpenCV in cmake, change OpenCV_DIR to folder containing OpenCVConfig.cmake
+
+Usually -DOpenCV_DIR=/Users/YourName/path/to/OpenCv/share/OpenCv/
+
 ### NO DEMO
 
 - SET BUILD_DEMO=OFF
