@@ -1,9 +1,9 @@
 //  hammingseg.h
 //      
 //	Copyright (C) 2011-2012  Signal processing laboratory 2, EPFL,
+//	Kirell Benzi (kirell.benzi@epfl.ch),
 //	Raphael Ortiz (raphael.ortiz@a3.epfl.ch),
-//	Kirell Benzi (kirell.benzi@epfl.ch)
-//	Alexandre Alahi (alexandre.alahi@epfl.ch)
+//	Alexandre Alahi (alexandre.alahi@epfl.ch),
 //	and Pierre Vandergheynst (pierre.vandergheynst@epfl.ch)
 //
 //  Redistribution and use in source and binary forms, with or without modification,
@@ -64,7 +64,7 @@ static const __m128i SHIFT = _mm_set_epi32(0,0,0,4);
 template<int Tr = -1, int nbBlocks = 4>
 struct CV_EXPORTS HammingSeg
 {
-    // 512 hamming distance segmanted in 128+384 bits
+    // 512 hamming distance segmented in 128+384 bits
     // SSSE3
     // adapted from http://wm.ite.pl/articles/sse-popcount.html
     // and BRISK: Binary Robust Invariant Scalable Keypoints : http://www.asl.ethz.ch/people/lestefan/personal/BRISK

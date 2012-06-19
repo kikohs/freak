@@ -1,8 +1,8 @@
 //  freak.cpp
 //
 //	Copyright (C) 2011-2012  Signal processing laboratory 2, EPFL,
-//	Raphael Ortiz (raphael.ortiz@a3.epfl.ch),
-//	Kirell Benzi (kirell.benzi@epfl.ch)
+//	Kirell Benzi (kirell.benzi@epfl.ch),
+//	Raphael Ortiz (raphael.ortiz@a3.epfl.ch)
 //	Alexandre Alahi (alexandre.alahi@epfl.ch)
 //	and Pierre Vandergheynst (pierre.vandergheynst@epfl.ch)
 //
@@ -48,7 +48,11 @@
 
 #include "freak.h"
 
-using namespace cv;
+#ifndef CV_PI
+    #define CV_PI 3.141592653589793
+#endif
+
+namespace cv {
 
 // binary: 10000000 => char: 128 or hex: 0x80
 static const __m128i binMask = _mm_set_epi8(0x80, 0x80, 0x80,
@@ -58,7 +62,18 @@ static const __m128i binMask = _mm_set_epi8(0x80, 0x80, 0x80,
                                             0x80, 0x80, 0x80,
                                             0x80);
 
-static const int kTmp[kNB_PAIRS] = {404,431,818,511,181,52,311,874,774,543,719,230,417,205,11,
+static const double CV_FREAK_SQRT2 = 1.4142135623731;
+static const double CV_FREAK_INV_SQRT2 = 1.0 / CV_FREAK_SQRT2;
+static const double CV_FREAK_LOG2 = 0.693147180559945;
+static const int CV_FREAK_NB_SCALES = 64;
+static const int CV_FREAK_NB_ORIENTATION = 256;
+static const int CV_FREAK_NB_POINTS = 43;
+static const int CV_FREAK_NB_PAIRS = 512;
+static const int CV_FREAK_SMALLEST_KP_SIZE = 7; // smallest size of keypoints
+static const int CV_FREAK_NB_ORIENPAIRS = 45;
+
+static const int CV_FREAK_DEF_PAIRS[CV_FREAK_NB_PAIRS] = { // default pairs
+                                    404,431,818,511,181,52,311,874,774,543,719,230,417,205,11,
                                     560,149,265,39,306,165,857,250,8,61,15,55,717,44,412,
                                     592,134,761,695,660,782,625,487,549,516,271,665,762,392,178,
                                     796,773,31,672,845,548,794,677,654,241,831,225,238,849,83,
@@ -94,22 +109,102 @@ static const int kTmp[kNB_PAIRS] = {404,431,818,511,181,52,311,874,774,543,719,2
                                     670,249,36,581,389,605,331,518,442,822
                                    };
 
-FreakDescriptorExtractor::FreakDescriptorExtractor( bool orientationNormalized_, bool scaleNormalized_,
-                                                    float patternScale_, int nbOctaves_,
-                                                    const std::string& filename )
-    : m_orientationNormalized(orientationNormalized_)
-    , m_scaleNormalized(scaleNormalized_)
-    , m_patternScale(patternScale_)
-    , m_nbOctaves(nbOctaves_)
-    , m_extAll(false)
+struct PatternPoint
 {
-    buildPattern(filename);
+    float x; // x coordinate relative to center
+    float y; // x coordinate relative to center
+    float sigma; // Gaussian smoothing sigma
+};
+
+struct DescriptionPair
+{
+    uchar i; // index of the first point
+    uchar j; // index of the second point
+};
+
+struct OrientationPair
+{
+    uchar i; // index of the first point
+    uchar j; // index of the second point
+    int weight_dx; // dx/(norm_sq))*4096
+    int weight_dy; // dy/(norm_sq))*4096
+};
+
+struct PairStat
+{ // used to sort pairs during pairs selection
+    double mean;
+    int idx;
+};
+
+struct sortMean
+{
+    bool operator()( const PairStat& a, const PairStat& b ) const {
+        return a.mean < b.mean;
+    }
+};
+
+struct FREAKImpl {
+
+    explicit FREAKImpl( bool orientationNormalized_
+           , bool scaleNormalized_
+           , float patternScale_
+           , int nbOctave_
+           , const std::vector<int>& vector_
+         );
+
+    ~FREAKImpl();
+    void compute( const Mat& image, std::vector<KeyPoint>& keypoints, Mat& descriptors ) const;
+
+    /** create the pattern lookup table for all orientation and scale
+         * @param filename (optional) vector containing the selected pairs
+    */
+    void buildPattern( const std::vector<int>& selectedPairs );
+
+    /** draw the description pattern, debug only uncomment if needed */
+   // void drawPattern();
+
+    std::vector<int> selectPairs( const std::vector<Mat>& images, std::vector<std::vector<KeyPoint> >& keypoints,
+                        const double corrTresh, bool verbose );
+
+    /** compute the intensity of a pattern point (simple mean approximation on a square box)
+         * @param image grayscale image
+         * @param integral integral image
+         * @param kp_x keypoint x coordinate in image (in pixels)
+         * @param kp_y keypoint y coordinate in image (in pixels)
+         * @param scale scale index in look-up table
+         * @param rot orientation index in look-up table
+         * @param point point index in look-up table
+    */
+    uchar meanIntensity( const Mat& image, const Mat& integral, const float kp_x, const float kp_y,
+                         const unsigned int scale, const unsigned int rot, const unsigned int point ) const;
+
+    bool orientationNormalized; //true if the orientation is normalized, false otherwise
+    bool scaleNormalized; //true if the scale is normalized, false otherwise
+    float patternScale; //scaling of the pattern
+    int nbOctaves; //number of octaves
+    bool extAll; // true if all pairs need to be extracted for pairs selection
+    PatternPoint* patternLookup; // look-up table for the pattern points (position+sigma of all points at all scales and orientation)
+    int patternSizes[CV_FREAK_NB_SCALES]; // size of the pattern at a specific scale (used to check if a point is within image boundaries)
+    DescriptionPair descriptionPairs[CV_FREAK_NB_PAIRS];
+    OrientationPair orientationPairs[CV_FREAK_NB_ORIENPAIRS];
+};
+
+
+FREAKImpl::FREAKImpl( bool orientationNormalized, bool scaleNormalized,
+              float patternScale, int nbOctaves, const std::vector<int>& selectedPairs )
+    : orientationNormalized(orientationNormalized)
+    , scaleNormalized(scaleNormalized)
+    , patternScale(patternScale)
+    , nbOctaves(nbOctaves)
+    , extAll(false)
+{
+    buildPattern(selectedPairs);
 }
 
-void FreakDescriptorExtractor::buildPattern( const std::string& filename )
+void FREAKImpl::buildPattern( const std::vector<int>& selectedPairs )
 {
-    m_patternLookup = new PatternPoint[kNB_SCALES*kNB_ORIENTATION*kNB_POINTS];
-    double scaleStep = pow(2.0, (double)(m_nbOctaves)/kNB_SCALES ); // 2 ^ ( (nbOctaves-1) /nbScales)
+    patternLookup = new PatternPoint[CV_FREAK_NB_SCALES*CV_FREAK_NB_ORIENTATION*CV_FREAK_NB_POINTS];
+    double scaleStep = pow(2.0, (double)(nbOctaves)/CV_FREAK_NB_SCALES ); // 2 ^ ( (nbOctaves-1) /nbScales)
     double scalingFactor, alpha, beta, theta = 0;
 
     // pattern definition, radius normalized to 1.0 (outer point position+sigma=1.0)
@@ -125,12 +220,12 @@ void FreakDescriptorExtractor::buildPattern( const std::string& filename )
                              radius[6]/2.0, radius[6]/2.0
                             };
     // fill the lookup table
-    for( int scaleIdx=0; scaleIdx < kNB_SCALES; ++scaleIdx ) {
-        m_patternSizes[scaleIdx] = 0; // proper initialization
+    for( int scaleIdx=0; scaleIdx < CV_FREAK_NB_SCALES; ++scaleIdx ) {
+        patternSizes[scaleIdx] = 0; // proper initialization
         scalingFactor = pow(scaleStep,scaleIdx); //scale of the pattern, scaleStep ^ scaleIdx
 
-        for( int orientationIdx = 0; orientationIdx < kNB_ORIENTATION; ++orientationIdx ) {
-            theta = double(orientationIdx)* 2*M_PI/double(kNB_ORIENTATION); // orientation of the pattern
+        for( int orientationIdx = 0; orientationIdx < CV_FREAK_NB_ORIENTATION; ++orientationIdx ) {
+            theta = double(orientationIdx)* 2*CV_PI/double(CV_FREAK_NB_ORIENTATION); // orientation of the pattern
             int pointIdx = 0;
 
             for( size_t i = 0; i < 8; ++i ) {
@@ -139,15 +234,15 @@ void FreakDescriptorExtractor::buildPattern( const std::string& filename )
                     alpha = double(k)* 2*M_PI/double(n[i])+beta+theta;
 
                     // add the point to the look-up table
-                    PatternPoint& point = m_patternLookup[ scaleIdx*kNB_ORIENTATION*kNB_POINTS+orientationIdx*kNB_POINTS+pointIdx ];
-                    point.x = radius[i] * cos(alpha) * scalingFactor * m_patternScale;
-                    point.y = radius[i] * sin(alpha) * scalingFactor * m_patternScale;
-                    point.sigma = sigma[i] * scalingFactor * m_patternScale;
+                    PatternPoint& point = patternLookup[ scaleIdx*CV_FREAK_NB_ORIENTATION*CV_FREAK_NB_POINTS+orientationIdx*CV_FREAK_NB_POINTS+pointIdx ];
+                    point.x = radius[i] * cos(alpha) * scalingFactor * patternScale;
+                    point.y = radius[i] * sin(alpha) * scalingFactor * patternScale;
+                    point.sigma = sigma[i] * scalingFactor * patternScale;
 
                     // adapt the sizeList if necessary
-                    const int sizeMax = ceil((radius[i]+sigma[i])*scalingFactor*m_patternScale) + 1;
-                    if( m_patternSizes[scaleIdx] < sizeMax )
-                        m_patternSizes[scaleIdx] = sizeMax;
+                    const int sizeMax = ceil((radius[i]+sigma[i])*scalingFactor*patternScale) + 1;
+                    if( patternSizes[scaleIdx] < sizeMax )
+                        patternSizes[scaleIdx] = sizeMax;
 
                     ++pointIdx;
                 }
@@ -156,111 +251,62 @@ void FreakDescriptorExtractor::buildPattern( const std::string& filename )
     }
 
     // build the list of orientation pairs
-    m_orientationPairs[0].i=0; m_orientationPairs[0].j=3; m_orientationPairs[1].i=1; m_orientationPairs[1].j=4; m_orientationPairs[2].i=2; m_orientationPairs[2].j=5;
-    m_orientationPairs[3].i=0; m_orientationPairs[3].j=2; m_orientationPairs[4].i=1; m_orientationPairs[4].j=3; m_orientationPairs[5].i=2; m_orientationPairs[5].j=4;
-    m_orientationPairs[6].i=3; m_orientationPairs[6].j=5; m_orientationPairs[7].i=4; m_orientationPairs[7].j=0; m_orientationPairs[8].i=5; m_orientationPairs[8].j=1;
+    orientationPairs[0].i=0; orientationPairs[0].j=3; orientationPairs[1].i=1; orientationPairs[1].j=4; orientationPairs[2].i=2; orientationPairs[2].j=5;
+    orientationPairs[3].i=0; orientationPairs[3].j=2; orientationPairs[4].i=1; orientationPairs[4].j=3; orientationPairs[5].i=2; orientationPairs[5].j=4;
+    orientationPairs[6].i=3; orientationPairs[6].j=5; orientationPairs[7].i=4; orientationPairs[7].j=0; orientationPairs[8].i=5; orientationPairs[8].j=1;
 
-    m_orientationPairs[9].i=6; m_orientationPairs[9].j=9; m_orientationPairs[10].i=7; m_orientationPairs[10].j=10; m_orientationPairs[11].i=8; m_orientationPairs[11].j=11;
-    m_orientationPairs[12].i=6; m_orientationPairs[12].j=8; m_orientationPairs[13].i=7; m_orientationPairs[13].j=9; m_orientationPairs[14].i=8; m_orientationPairs[14].j=10;
-    m_orientationPairs[15].i=9; m_orientationPairs[15].j=11; m_orientationPairs[16].i=10; m_orientationPairs[16].j=6; m_orientationPairs[17].i=11; m_orientationPairs[17].j=7;
+    orientationPairs[9].i=6; orientationPairs[9].j=9; orientationPairs[10].i=7; orientationPairs[10].j=10; orientationPairs[11].i=8; orientationPairs[11].j=11;
+    orientationPairs[12].i=6; orientationPairs[12].j=8; orientationPairs[13].i=7; orientationPairs[13].j=9; orientationPairs[14].i=8; orientationPairs[14].j=10;
+    orientationPairs[15].i=9; orientationPairs[15].j=11; orientationPairs[16].i=10; orientationPairs[16].j=6; orientationPairs[17].i=11; orientationPairs[17].j=7;
 
-    m_orientationPairs[18].i=12; m_orientationPairs[18].j=15; m_orientationPairs[19].i=13; m_orientationPairs[19].j=16; m_orientationPairs[20].i=14; m_orientationPairs[20].j=17;
-    m_orientationPairs[21].i=12; m_orientationPairs[21].j=14; m_orientationPairs[22].i=13; m_orientationPairs[22].j=15; m_orientationPairs[23].i=14; m_orientationPairs[23].j=16;
-    m_orientationPairs[24].i=15; m_orientationPairs[24].j=17; m_orientationPairs[25].i=16; m_orientationPairs[25].j=12; m_orientationPairs[26].i=17; m_orientationPairs[26].j=13;
+    orientationPairs[18].i=12; orientationPairs[18].j=15; orientationPairs[19].i=13; orientationPairs[19].j=16; orientationPairs[20].i=14; orientationPairs[20].j=17;
+    orientationPairs[21].i=12; orientationPairs[21].j=14; orientationPairs[22].i=13; orientationPairs[22].j=15; orientationPairs[23].i=14; orientationPairs[23].j=16;
+    orientationPairs[24].i=15; orientationPairs[24].j=17; orientationPairs[25].i=16; orientationPairs[25].j=12; orientationPairs[26].i=17; orientationPairs[26].j=13;
 
-    m_orientationPairs[27].i=18; m_orientationPairs[27].j=21; m_orientationPairs[28].i=19; m_orientationPairs[28].j=22; m_orientationPairs[29].i=20; m_orientationPairs[29].j=23;
-    m_orientationPairs[30].i=18; m_orientationPairs[30].j=20; m_orientationPairs[31].i=19; m_orientationPairs[31].j=21; m_orientationPairs[32].i=20; m_orientationPairs[32].j=22;
-    m_orientationPairs[33].i=21; m_orientationPairs[33].j=23; m_orientationPairs[34].i=22; m_orientationPairs[34].j=18; m_orientationPairs[35].i=23; m_orientationPairs[35].j=19;
+    orientationPairs[27].i=18; orientationPairs[27].j=21; orientationPairs[28].i=19; orientationPairs[28].j=22; orientationPairs[29].i=20; orientationPairs[29].j=23;
+    orientationPairs[30].i=18; orientationPairs[30].j=20; orientationPairs[31].i=19; orientationPairs[31].j=21; orientationPairs[32].i=20; orientationPairs[32].j=22;
+    orientationPairs[33].i=21; orientationPairs[33].j=23; orientationPairs[34].i=22; orientationPairs[34].j=18; orientationPairs[35].i=23; orientationPairs[35].j=19;
 
-    m_orientationPairs[36].i=24; m_orientationPairs[36].j=27; m_orientationPairs[37].i=25; m_orientationPairs[37].j=28; m_orientationPairs[38].i=26; m_orientationPairs[38].j=29;
-    m_orientationPairs[39].i=30; m_orientationPairs[39].j=33; m_orientationPairs[40].i=31; m_orientationPairs[40].j=34; m_orientationPairs[41].i=32; m_orientationPairs[41].j=35;
-    m_orientationPairs[42].i=36; m_orientationPairs[42].j=39; m_orientationPairs[43].i=37; m_orientationPairs[43].j=40; m_orientationPairs[44].i=38; m_orientationPairs[44].j=41;
+    orientationPairs[36].i=24; orientationPairs[36].j=27; orientationPairs[37].i=25; orientationPairs[37].j=28; orientationPairs[38].i=26; orientationPairs[38].j=29;
+    orientationPairs[39].i=30; orientationPairs[39].j=33; orientationPairs[40].i=31; orientationPairs[40].j=34; orientationPairs[41].i=32; orientationPairs[41].j=35;
+    orientationPairs[42].i=36; orientationPairs[42].j=39; orientationPairs[43].i=37; orientationPairs[43].j=40; orientationPairs[44].i=38; orientationPairs[44].j=41;
 
-    for( unsigned m = kNB_ORIENPAIRS; m--; ) {
-        const float dx = m_patternLookup[m_orientationPairs[m].i].x-m_patternLookup[m_orientationPairs[m].j].x;
-        const float dy = m_patternLookup[m_orientationPairs[m].i].y-m_patternLookup[m_orientationPairs[m].j].y;
+    for( unsigned m = CV_FREAK_NB_ORIENPAIRS; m--; ) {
+        const float dx = patternLookup[orientationPairs[m].i].x-patternLookup[orientationPairs[m].j].x;
+        const float dy = patternLookup[orientationPairs[m].i].y-patternLookup[orientationPairs[m].j].y;
         const float norm_sq = (dx*dx+dy*dy);
-        m_orientationPairs[m].weight_dx = int((dx/(norm_sq))*4096.0+0.5);
-        m_orientationPairs[m].weight_dy = int((dy/(norm_sq))*4096.0+0.5);
+        orientationPairs[m].weight_dx = int((dx/(norm_sq))*4096.0+0.5);
+        orientationPairs[m].weight_dy = int((dy/(norm_sq))*4096.0+0.5);
     }
 
     // build the list of description pairs
     std::vector<DescriptionPair> allPairs;
-    for( unsigned int i = 1; i < (unsigned int)kNB_POINTS; ++i ) {
+    for( unsigned int i = 1; i < (unsigned int)CV_FREAK_NB_POINTS; ++i ) {
         // (generate all the pairs)
         for( unsigned int j = 0; (unsigned int)j < i; ++j ) {
             DescriptionPair pair = {(uchar)i,(uchar)j};
             allPairs.push_back(pair);
         }
     }
-
-    // load idxs of the selected 512 best pairs
-    int idxBestPairs[kNB_PAIRS];
-    if( filename.size() != 0 ) {
-        std::ifstream fileIn(filename.c_str(), std::ios::binary);
-        if( fileIn ) {
-            fileIn.read((char*)&idxBestPairs, sizeof(idxBestPairs) );
-            fileIn.close();
+    // Input vector provided
+    if( !selectedPairs.empty() ) {
+        if( (int)selectedPairs.size() == CV_FREAK_NB_PAIRS ) {
+            for( int i = 0; i < CV_FREAK_NB_PAIRS; ++i )
+                 descriptionPairs[i] = allPairs[selectedPairs.at(i)];
         }
         else {
-            std::cerr << "error while reading pairs file: " << filename << std::endl;
-            std::cerr << "using pre-computed best pairs" << std::endl;
-            memcpy( idxBestPairs, kTmp, sizeof(idxBestPairs) );
+            CV_Error(CV_StsVecLengthErr, "Input vector does not match the required size");
         }
     }
-    else {
-        memcpy( idxBestPairs, kTmp, sizeof(idxBestPairs) );
+    else { // default selected pairs
+        for( int i = 0; i < CV_FREAK_NB_PAIRS; ++i )
+             descriptionPairs[i] = allPairs[CV_FREAK_DEF_PAIRS[i]];
     }
-
-    // selected pairs
-    for( int i = 0; i < kNB_PAIRS; ++i ) //{
-         m_descriptionPairs[i] = allPairs[idxBestPairs[i]];
-//         std::cout << (unsigned int)m_descriptionPairs[i].i << ',' << (int)m_descriptionPairs[i].j;
-//    }
-//    std::cout << std::endl;
 }
 
-// create an image showing the brisk pattern
-void FreakDescriptorExtractor::drawPattern()
-{
-    Mat pattern = Mat::zeros(1000, 1000, CV_8UC3) + Scalar(255,255,255);
-    //~ namedWindow( "FreakDescriptorExtractor pattern", CV_WINDOW_KEEPRATIO );
+void FREAKImpl::compute( const Mat& image, std::vector<KeyPoint>& keypoints, Mat& descriptors ) const {
 
-    int sFac = 500 / m_patternScale;
-
-    for( int n = 0; n < kNB_POINTS; ++n ) {
-        PatternPoint& pt = m_patternLookup[n];
-        circle(pattern, Point( pt.x*sFac,pt.y*sFac)+Point(500,500), pt.sigma*sFac, Scalar(0,0,255),2);
-        //~ rectangle(pattern, Point( (pt.x-pt.sigma)*sFac,(pt.y-pt.sigma)*sFac)+Point(500,500), Point( (pt.x+pt.sigma)*sFac,(pt.y+pt.sigma)*sFac)+Point(500,500), Scalar(0,0,255),2);
-
-        circle(pattern, Point( pt.x*sFac,pt.y*sFac)+Point(500,500), 1, Scalar(0,0,0),3);
-        std::ostringstream oss;
-        oss << n;
-        putText( pattern, oss.str(), Point( pt.x*sFac,pt.y*sFac)+Point(500,500), FONT_HERSHEY_SIMPLEX,0.5, Scalar(0,0,0), 1);
-    }
-
-    //~ for(size_t n=384; n<512 ;++n)
-    //~ {
-        //~ PatternPoint& pta=patternLookup[ descriptionPairs[n].i ];
-        //~ PatternPoint& ptb=patternLookup[ descriptionPairs[n].j ];
-        //~ line( pattern, Point( pta.x*sFac,pta.y*sFac)+Point(500,500) , Point( ptb.x*sFac,ptb.y*sFac)+Point(500,500), Scalar(255,0,0) );
-    //~ }
-
-    imshow( "FreakDescriptorExtractor pattern", pattern );
-    waitKey(0);
-}
-
-int FreakDescriptorExtractor::descriptorSize() const {
-    return kNB_PAIRS/8; // descriptor length in bytes
-}
-
-int FreakDescriptorExtractor::descriptorType() const {
-    return CV_8U;
-}
-
-void FreakDescriptorExtractor::computeImpl( const Mat& image, std::vector<KeyPoint>& keypoints, Mat& descriptors ) const {
-
-#ifdef USE_SSE
+#if CV_SSSE3
     register __m128i operand1;
     register __m128i operand2;
     register __m128i workReg;
@@ -272,24 +318,24 @@ void FreakDescriptorExtractor::computeImpl( const Mat& image, std::vector<KeyPoi
     std::vector<int> kpScaleIdx(keypoints.size()); // used to save pattern scale index corresponding to each keypoints
     const std::vector<int>::iterator ScaleIdxBegin = kpScaleIdx.begin(); // used in std::vector erase function
     const std::vector<cv::KeyPoint>::iterator kpBegin = keypoints.begin(); // used in std::vector erase function
-    const float sizeCst = kNB_SCALES/(kLOG2* m_nbOctaves );
-    uint8 pointsValue[kNB_POINTS];
-    int thetaIdx(0);
+    const float sizeCst = CV_FREAK_NB_SCALES/(CV_FREAK_LOG2* nbOctaves );
+    uchar pointsValue[CV_FREAK_NB_POINTS];
+    int thetaIdx = 0;
     int direction0;
     int direction1;
 
     // compute the scale index corresponding to the keypoint size and remove keypoints close to the border
-    if( m_scaleNormalized ) {
+    if( scaleNormalized ) {
         for( size_t k = keypoints.size(); k--; ) {
             //Is k non-zero? If so, decrement it and continue"
-            kpScaleIdx[k] = max( (int)(log(keypoints[k].size/kSMALLEST_KP_SIZE)*sizeCst+0.5) ,0);
-            if( kpScaleIdx[k] >= kNB_SCALES )
-                kpScaleIdx[k] = kNB_SCALES-1;
+            kpScaleIdx[k] = max( (int)(log(keypoints[k].size/CV_FREAK_SMALLEST_KP_SIZE)*sizeCst+0.5) ,0);
+            if( kpScaleIdx[k] >= CV_FREAK_NB_SCALES )
+                kpScaleIdx[k] = CV_FREAK_NB_SCALES-1;
 
-            if( keypoints[k].pt.x <= m_patternSizes[kpScaleIdx[k]] || //check if the description at this specific position and scale fits inside the image
-                 keypoints[k].pt.y <= m_patternSizes[kpScaleIdx[k]] ||
-                 keypoints[k].pt.x >= image.cols-m_patternSizes[kpScaleIdx[k]] ||
-                 keypoints[k].pt.y >= image.rows-m_patternSizes[kpScaleIdx[k]]
+            if( keypoints[k].pt.x <= patternSizes[kpScaleIdx[k]] || //check if the description at this specific position and scale fits inside the image
+                 keypoints[k].pt.y <= patternSizes[kpScaleIdx[k]] ||
+                 keypoints[k].pt.x >= image.cols-patternSizes[kpScaleIdx[k]] ||
+                 keypoints[k].pt.y >= image.rows-patternSizes[kpScaleIdx[k]]
                ) {
                 keypoints.erase(kpBegin+k);
                 kpScaleIdx.erase(ScaleIdxBegin+k);
@@ -318,13 +364,13 @@ void FreakDescriptorExtractor::computeImpl( const Mat& image, std::vector<KeyPoi
         const int scIdx = max( (int)(1.0986122886681*sizeCst+0.5) ,0);
         for( size_t k = keypoints.size(); k--; ) {
             kpScaleIdx[k] = scIdx; // equivalent to the formule when the scale is normalized with a constant size of keypoints[k].size=3*SMALLEST_KP_SIZE
-            if( kpScaleIdx[k] >= kNB_SCALES ) {
-                kpScaleIdx[k] = kNB_SCALES-1;
+            if( kpScaleIdx[k] >= CV_FREAK_NB_SCALES ) {
+                kpScaleIdx[k] = CV_FREAK_NB_SCALES-1;
             }
-            if( keypoints[k].pt.x <= m_patternSizes[kpScaleIdx[k]] ||
-                keypoints[k].pt.y <= m_patternSizes[kpScaleIdx[k]] ||
-                keypoints[k].pt.x >= image.cols-m_patternSizes[kpScaleIdx[k]] ||
-                keypoints[k].pt.y >= image.rows-m_patternSizes[kpScaleIdx[k]]
+            if( keypoints[k].pt.x <= patternSizes[kpScaleIdx[k]] ||
+                keypoints[k].pt.y <= patternSizes[kpScaleIdx[k]] ||
+                keypoints[k].pt.x >= image.cols-patternSizes[kpScaleIdx[k]] ||
+                keypoints[k].pt.y >= image.rows-patternSizes[kpScaleIdx[k]]
                ) {
                 keypoints.erase(kpBegin+k);
                 kpScaleIdx.erase(ScaleIdxBegin+k);
@@ -333,68 +379,62 @@ void FreakDescriptorExtractor::computeImpl( const Mat& image, std::vector<KeyPoi
     }
 
     // allocate descriptor memory, estimate orientations, extract descriptors
-    if( !m_extAll ) {
+    if( !extAll ) {
         // extract the best comparisons only
-        descriptors = cv::Mat::zeros(keypoints.size(),kNB_PAIRS/8, CV_8U);
-#ifndef USE_SSE
-        std::bitset<kNB_PAIRS>* ptr= (std::bitset<kNB_PAIRS>*) (descriptors.data+(keypoints.size()-1)*descriptors.step[0]);
-#else
+        descriptors = cv::Mat::zeros(keypoints.size(), CV_FREAK_NB_PAIRS/8, CV_8U);
+#if CV_SSSE3
         __m128i* ptr= (__m128i*) (descriptors.data+(keypoints.size()-1)*descriptors.step[0]);
+#else
+        std::bitset<CV_FREAK_NB_PAIRS>* ptr = (std::bitset<CV_FREAK_NB_PAIRS>*) (descriptors.data+(keypoints.size()-1)*descriptors.step[0]);
 #endif
         for( size_t k = keypoints.size(); k--; ) {
             // estimate orientation (gradient)
-            if( !m_orientationNormalized ) {
+            if( !orientationNormalized ) {
                 thetaIdx = 0; // assign 0° to all keypoints
                 keypoints[k].angle = 0.0;
             }
             else {
                 // get the points intensity value in the un-rotated pattern
-                for( int i = kNB_POINTS; i--; ) {
+                for( int i = CV_FREAK_NB_POINTS; i--; ) {
                     pointsValue[i] = meanIntensity(image, imgIntegral, keypoints[k].pt.x,keypoints[k].pt.y, kpScaleIdx[k], 0, i);
                 }
                 direction0 = 0;
                 direction1 = 0;
                 for( int m = 45; m--; ) {
                     //iterate through the orientation pairs
-                    const int delta = (pointsValue[ m_orientationPairs[m].i ]-pointsValue[ m_orientationPairs[m].j ]);
-                    direction0 += delta*(m_orientationPairs[m].weight_dx)/2048;
-                    direction1 += delta*(m_orientationPairs[m].weight_dy)/2048;
+                    const int delta = (pointsValue[ orientationPairs[m].i ]-pointsValue[ orientationPairs[m].j ]);
+                    direction0 += delta*(orientationPairs[m].weight_dx)/2048;
+                    direction1 += delta*(orientationPairs[m].weight_dy)/2048;
                 }
 
                 keypoints[k].angle = atan2((float)direction1,(float)direction0)*(180.0/M_PI);//estimate orientation
-                thetaIdx = int(kNB_ORIENTATION*keypoints[k].angle*(1/360.0)+0.5);
+                thetaIdx = int(CV_FREAK_NB_ORIENTATION*keypoints[k].angle*(1/360.0)+0.5);
                 if( thetaIdx < 0 )
-                    thetaIdx += kNB_ORIENTATION;
+                    thetaIdx += CV_FREAK_NB_ORIENTATION;
 
-                if( thetaIdx >= kNB_ORIENTATION )
-                    thetaIdx -= kNB_ORIENTATION;
+                if( thetaIdx >= CV_FREAK_NB_ORIENTATION )
+                    thetaIdx -= CV_FREAK_NB_ORIENTATION;
             }
             // extract descriptor at the computed orientation
-            for( int i = kNB_POINTS; i--; ) {
+            for( int i = CV_FREAK_NB_POINTS; i--; ) {
                 pointsValue[i] = meanIntensity(image, imgIntegral, keypoints[k].pt.x,keypoints[k].pt.y, kpScaleIdx[k], thetaIdx, i);
-            }
-
-#ifndef USE_SSE
-            for( int m = kNB_PAIRS; m--; ) {
-                ptr->set(m, pointsValue[m_descriptionPairs[m].i]>  pointsValue[m_descriptionPairs[m].j ] );
-            }
-            --ptr;
-#else
+            }           
+#if CV_SSSE3
             // extracting descriptor by blocks of 128 bits using SSE instructions
             // note that comparisons order is modified in each block (but first 128 comparisons remain globally the same-->does not affect the 128,384 bits segmanted matching strategy)
             int cnt(0);
             for( int n = 4; n-- ; ) {
                 result128 = _mm_setzero_si128();
                 for( int m = 8; m--; cnt+=16 ) {
-                    operand1 = _mm_set_epi8(pointsValue[m_descriptionPairs[cnt].i],pointsValue[m_descriptionPairs[cnt+1].i],pointsValue[m_descriptionPairs[cnt+2].i],pointsValue[m_descriptionPairs[cnt+3].i],
-                                          pointsValue[m_descriptionPairs[cnt+4].i],pointsValue[m_descriptionPairs[cnt+5].i],pointsValue[m_descriptionPairs[cnt+6].i],pointsValue[m_descriptionPairs[cnt+7].i],
-                                          pointsValue[m_descriptionPairs[cnt+8].i],pointsValue[m_descriptionPairs[cnt+9].i],pointsValue[m_descriptionPairs[cnt+10].i],pointsValue[m_descriptionPairs[cnt+11].i],
-                                          pointsValue[m_descriptionPairs[cnt+12].i],pointsValue[m_descriptionPairs[cnt+13].i],pointsValue[m_descriptionPairs[cnt+14].i],pointsValue[m_descriptionPairs[cnt+15].i]);
+                    operand1 = _mm_set_epi8(pointsValue[descriptionPairs[cnt].i],pointsValue[descriptionPairs[cnt+1].i],pointsValue[descriptionPairs[cnt+2].i],pointsValue[descriptionPairs[cnt+3].i],
+                                          pointsValue[descriptionPairs[cnt+4].i],pointsValue[descriptionPairs[cnt+5].i],pointsValue[descriptionPairs[cnt+6].i],pointsValue[descriptionPairs[cnt+7].i],
+                                          pointsValue[descriptionPairs[cnt+8].i],pointsValue[descriptionPairs[cnt+9].i],pointsValue[descriptionPairs[cnt+10].i],pointsValue[descriptionPairs[cnt+11].i],
+                                          pointsValue[descriptionPairs[cnt+12].i],pointsValue[descriptionPairs[cnt+13].i],pointsValue[descriptionPairs[cnt+14].i],pointsValue[descriptionPairs[cnt+15].i]);
 
-                    operand2 = _mm_set_epi8(pointsValue[m_descriptionPairs[cnt].j],pointsValue[m_descriptionPairs[cnt+1].j],pointsValue[m_descriptionPairs[cnt+2].j],pointsValue[m_descriptionPairs[cnt+3].j],
-                                          pointsValue[m_descriptionPairs[cnt+4].j],pointsValue[m_descriptionPairs[cnt+5].j],pointsValue[m_descriptionPairs[cnt+6].j],pointsValue[m_descriptionPairs[cnt+7].j],
-                                          pointsValue[m_descriptionPairs[cnt+8].j],pointsValue[m_descriptionPairs[cnt+9].j],pointsValue[m_descriptionPairs[cnt+10].j],pointsValue[m_descriptionPairs[cnt+11].j],
-                                          pointsValue[m_descriptionPairs[cnt+12].j],pointsValue[m_descriptionPairs[cnt+13].j],pointsValue[m_descriptionPairs[cnt+14].j],pointsValue[m_descriptionPairs[cnt+15].j]);
+                    operand2 = _mm_set_epi8(pointsValue[descriptionPairs[cnt].j],pointsValue[descriptionPairs[cnt+1].j],pointsValue[descriptionPairs[cnt+2].j],pointsValue[descriptionPairs[cnt+3].j],
+                                          pointsValue[descriptionPairs[cnt+4].j],pointsValue[descriptionPairs[cnt+5].j],pointsValue[descriptionPairs[cnt+6].j],pointsValue[descriptionPairs[cnt+7].j],
+                                          pointsValue[descriptionPairs[cnt+8].j],pointsValue[descriptionPairs[cnt+9].j],pointsValue[descriptionPairs[cnt+10].j],pointsValue[descriptionPairs[cnt+11].j],
+                                          pointsValue[descriptionPairs[cnt+12].j],pointsValue[descriptionPairs[cnt+13].j],pointsValue[descriptionPairs[cnt+14].j],pointsValue[descriptionPairs[cnt+15].j]);
 
                     workReg = _mm_min_epu8(operand1, operand2); // emulated "greater than" for UNSIGNED int
                     workReg = _mm_cmpeq_epi8(workReg, operand2); // emulated "greater than" for UNSIGNED int
@@ -406,50 +446,55 @@ void FreakDescriptorExtractor::computeImpl( const Mat& image, std::vector<KeyPoi
                 ++ptr;
             }
             ptr-=8;
+#else
+            for( int m = CV_FREAK_NB_PAIRS; m--; ) {
+                ptr->set(m, pointsValue[descriptionPairs[m].i]>  pointsValue[descriptionPairs[m].j ] );
+            }
+            --ptr;
 #endif
         }
     }
     else { // extract all possible comparisons for selection
-        descriptors = cv::Mat::zeros(keypoints.size(),128, CV_8U);
+        descriptors = cv::Mat::zeros(keypoints.size(), 128, CV_8U);
         std::bitset<1024>* ptr = (std::bitset<1024>*) (descriptors.data+(keypoints.size()-1)*descriptors.step[0]);
 
         for( size_t k = keypoints.size(); k--; ) {
             //estimate orientation (gradient)
-            if( !m_orientationNormalized ) {
+            if( !orientationNormalized ) {
                 thetaIdx = 0;//assign 0° to all keypoints
                 keypoints[k].angle = 0.0;
             }
             else {
                 //get the points intensity value in the un-rotated pattern
-                for( int i = kNB_POINTS;i--; )
+                for( int i = CV_FREAK_NB_POINTS;i--; )
                     pointsValue[i] = meanIntensity(image, imgIntegral, keypoints[k].pt.x,keypoints[k].pt.y, kpScaleIdx[k], 0, i);
 
                 direction0 = 0;
                 direction1 = 0;
                 for( int m = 45; m--; ) {
                     //iterate through the orientation pairs
-                    const int delta = (pointsValue[ m_orientationPairs[m].i ]-pointsValue[ m_orientationPairs[m].j ]);
-                    direction0 += delta*(m_orientationPairs[m].weight_dx)/2048;
-                    direction1 += delta*(m_orientationPairs[m].weight_dy)/2048;
+                    const int delta = (pointsValue[ orientationPairs[m].i ]-pointsValue[ orientationPairs[m].j ]);
+                    direction0 += delta*(orientationPairs[m].weight_dx)/2048;
+                    direction1 += delta*(orientationPairs[m].weight_dy)/2048;
                 }
 
                 keypoints[k].angle = atan2((float)direction1,(float)direction0)*(180.0/M_PI); //estimate orientation
-                thetaIdx = int(kNB_ORIENTATION*keypoints[k].angle*(1/360.0)+0.5);
+                thetaIdx = int(CV_FREAK_NB_ORIENTATION*keypoints[k].angle*(1/360.0)+0.5);
 
                 if( thetaIdx < 0 )
-                    thetaIdx += kNB_ORIENTATION;
+                    thetaIdx += CV_FREAK_NB_ORIENTATION;
 
-                if( thetaIdx >= kNB_ORIENTATION )
-                    thetaIdx -= kNB_ORIENTATION;
+                if( thetaIdx >= CV_FREAK_NB_ORIENTATION )
+                    thetaIdx -= CV_FREAK_NB_ORIENTATION;
             }
             // get the points intensity value in the rotated pattern
-            for( int i = kNB_POINTS; i--; ) {
+            for( int i = CV_FREAK_NB_POINTS; i--; ) {
                 pointsValue[i] = meanIntensity(image, imgIntegral, keypoints[k].pt.x,
                                              keypoints[k].pt.y, kpScaleIdx[k], thetaIdx, i);
             }
 
             int cnt(0);
-            for( int i = 1; i < kNB_POINTS; ++i ) {
+            for( int i = 1; i < CV_FREAK_NB_POINTS; ++i ) {
                 //(generate all the pairs)
                 for( int j = 0; j < i; ++j ) {
                     ptr->set(cnt, pointsValue[i]>pointsValue[j] );
@@ -461,20 +506,20 @@ void FreakDescriptorExtractor::computeImpl( const Mat& image, std::vector<KeyPoi
     }
 }
 
-FreakDescriptorExtractor::~FreakDescriptorExtractor()
+FREAKImpl::~FREAKImpl()
 {
-    delete [] m_patternLookup;
+    delete [] patternLookup;
 }
 
 // simply take average on a square patch, not even gaussian approx
-uchar FreakDescriptorExtractor::meanIntensity( const cv::Mat& image, const cv::Mat& integral,
+uchar FREAKImpl::meanIntensity( const cv::Mat& image, const cv::Mat& integral,
                                                       const float kp_x,
                                                       const float kp_y,
                                                       const unsigned int scale,
                                                       const unsigned int rot,
                                                       const unsigned int point) const {
     // get point position in image
-    const PatternPoint& FreakPoint = m_patternLookup[scale*kNB_ORIENTATION*kNB_POINTS + rot*kNB_POINTS + point];
+    const PatternPoint& FreakPoint = patternLookup[scale*CV_FREAK_NB_ORIENTATION*CV_FREAK_NB_POINTS + rot*CV_FREAK_NB_POINTS + point];
     const float xf = FreakPoint.x+kp_x;
     const float yf = FreakPoint.y+kp_y;
     const int x = int(xf);
@@ -521,23 +566,27 @@ uchar FreakDescriptorExtractor::meanIntensity( const cv::Mat& image, const cv::M
     return ret_val;
 }
 
-//pair selection algorithm from a set of training images and corresponding keypoints
-void FreakDescriptorExtractor::selectPairs(const std::vector<Mat>& images,
-                                           std::vector<std::vector<KeyPoint> >& keypoints,
-                                           const std::string& filename,
-                                           const double corrTresh
-                                           ) {
-    m_extAll = true;
+// pair selection algorithm from a set of training images and corresponding keypoints
+std::vector<int> FREAKImpl::selectPairs(const std::vector<Mat>& images
+                                        , std::vector<std::vector<KeyPoint> >& keypoints
+                                        , const double corrTresh
+                                        , bool verbose )
+{
+    extAll = true;
     // compute descriptors with all pairs
     Mat descriptors;
+
+    if( verbose )
+        std::cout << "Number of images: " << images.size() << std::endl;
+
     for( size_t i = 0;i < images.size(); ++i ) {
-        std::cout << i << std::endl;
         Mat descriptorsTmp;
         compute(images[i],keypoints[i],descriptorsTmp);
         descriptors.push_back(descriptorsTmp);
     }
 
-    std::cout << "number of keypoints: " << descriptors.rows << std::endl;
+    if( verbose )
+        std::cout << "number of keypoints: " << descriptors.rows << std::endl;
 
     //descriptor in floating point format (each bit is a float)
     Mat descriptorsFloat = Mat::zeros(descriptors.rows, 903, CV_32F);
@@ -562,7 +611,8 @@ void FreakDescriptorExtractor::selectPairs(const std::vector<Mat>& images,
 
     std::vector<PairStat> bestPairs;
     for( int m = 0; m < 903; ++m ) {
-        std::cout << m << ":" << bestPairs.size() << " " << std::flush;
+        if( verbose )
+            std::cout << m << ":" << bestPairs.size() << " " << std::flush;
         double corrMax(0);
 
         for( size_t n = 0; n < bestPairs.size(); ++n ) {
@@ -583,30 +633,80 @@ void FreakDescriptorExtractor::selectPairs(const std::vector<Mat>& images,
             bestPairs.push_back(pairStat[m]);
 
         if( bestPairs.size() >= 512 ) {
-            std::cout << m << std::endl;
+            if( verbose )
+                std::cout << m << std::endl;
             break;
         }
     }
 
-    if( (int)bestPairs.size() >= kNB_PAIRS ) {
-
-        int idxBestPairs[kNB_PAIRS];
-        for( int i = 0; i < kNB_PAIRS; ++i ) {
-            idxBestPairs[i]=bestPairs[i].idx;
-        }
-
-        std::ofstream fileOut(filename.c_str(), std::ios::binary); // write the selected pairs in binary format
-        if( fileOut ) {
-            fileOut.write( (char*)&idxBestPairs, sizeof(idxBestPairs) );
-            fileOut.close();
-        }
-        else {
-            std::cerr << "impossible to write in file: " << filename << std::endl;
-        }
+    std::vector<int> idxBestPairs;
+    if( (int)bestPairs.size() >= CV_FREAK_NB_PAIRS ) {
+        for( int i = 0; i < CV_FREAK_NB_PAIRS; ++i )
+            idxBestPairs.push_back(bestPairs[i].idx);
     }
     else {
-        std::cout << "correlation treshold too small (restrictive)" << std::endl;
+        if( verbose )
+            std::cout << "correlation threshold too small (restrictive)" << std::endl;
+        CV_Error(CV_StsError, "correlation threshold too small (restrictive)");
     }
-    m_extAll=false;
+    extAll = false;
+    return idxBestPairs;
 }
+
+
+/*
+void FREAKImpl::drawPattern()
+{ // create an image showing the brisk pattern
+    Mat pattern = Mat::zeros(1000, 1000, CV_8UC3) + Scalar(255,255,255);
+    int sFac = 500 / patternScale;
+    for( int n = 0; n < kNB_POINTS; ++n ) {
+        PatternPoint& pt = patternLookup[n];
+        circle(pattern, Point( pt.x*sFac,pt.y*sFac)+Point(500,500), pt.sigma*sFac, Scalar(0,0,255),2);
+        // rectangle(pattern, Point( (pt.x-pt.sigma)*sFac,(pt.y-pt.sigma)*sFac)+Point(500,500), Point( (pt.x+pt.sigma)*sFac,(pt.y+pt.sigma)*sFac)+Point(500,500), Scalar(0,0,255),2);
+
+        circle(pattern, Point( pt.x*sFac,pt.y*sFac)+Point(500,500), 1, Scalar(0,0,0),3);
+        std::ostringstream oss;
+        oss << n;
+        putText( pattern, oss.str(), Point( pt.x*sFac,pt.y*sFac)+Point(500,500), FONT_HERSHEY_SIMPLEX,0.5, Scalar(0,0,0), 1);
+    }
+    imshow( "FreakDescriptorExtractor pattern", pattern );
+    waitKey(0);
+}
+*/
+
+// -------------------------------------------------
+/* FREAK interface implementation */
+FREAK::FREAK( bool orientationNormalized, bool scaleNormalized
+            , float patternScale, int nbOctave, const std::vector<int>& selectedPairs )
+    : impl(new FREAKImpl(orientationNormalized, scaleNormalized, patternScale, nbOctave, selectedPairs))
+{
+}
+
+FREAK::~FREAK()
+{
+    delete impl;
+}
+
+void FREAK::computeImpl( const Mat& image, std::vector<KeyPoint>& keypoints, Mat& descriptors ) const
+{
+    impl->compute(image, keypoints, descriptors);
+}
+
+std::vector<int> FREAK::selectPairs( const std::vector<Mat>& images, std::vector<std::vector<KeyPoint> >& keypoints,
+                                     const double corrTresh, bool verbose )
+{
+    return impl->selectPairs(images, keypoints, corrTresh, verbose);
+}
+
+int FREAK::descriptorSize() const {
+    return CV_FREAK_NB_PAIRS / 8; // descriptor length in bytes
+}
+
+int FREAK::descriptorType() const {
+    return CV_8U;
+}
+
+} // END NAMESPACE CV
+
+
 

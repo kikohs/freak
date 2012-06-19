@@ -2,10 +2,11 @@
 //
 //	Here is an example on how to use the descriptor presented in the following paper:
 //	A. Alahi, R. Ortiz, and P. Vandergheynst. FREAK: Fast Retina Keypoint. In IEEE Conference on Computer Vision and Pattern Recognition, 2012.
+//  CVPR 2012 Open Source Award winner
 //
 //	Copyright (C) 2011-2012  Signal processing laboratory 2, EPFL,
+//	Kirell Benzi (kirell.benzi@epfl.ch),
 //	Raphael Ortiz (raphael.ortiz@a3.epfl.ch),
-//	Kirell Benzi (kirell.benzi@epfl.ch)
 //	Alexandre Alahi (alexandre.alahi@epfl.ch)
 //	and Pierre Vandergheynst (pierre.vandergheynst@epfl.ch)
 //
@@ -68,24 +69,24 @@ int main( int argc, char** argv ) {
 
     std::vector<KeyPoint> keypointsA, keypointsB;
     Mat descriptorsA, descriptorsB;
-
-    std::vector< DMatch>   matches;
+    std::vector<DMatch> matches;
 
     // DETECTION
     // Any openCV detector such as
     SurfFeatureDetector detector(2000,4);
 
     // DESCRIPTOR
-    // Our propose FREAK descriptor
-    // (roation invariance, scale invariance, pattern radius corresponding to SMALLEST_KP_SIZE, number of octaves, file containing list of selected pairs)
-    // FreakDescriptorExtractor extractor(true, true, 22, 4, kResPath + "selected_pairs.bin");
-    FreakDescriptorExtractor extractor(true, true, 22, 4, "");
+    // Our proposed FREAK descriptor
+    // (roation invariance, scale invariance, pattern radius corresponding to SMALLEST_KP_SIZE,
+    // number of octaves, optional vector containing the selected pairs)
+    // FREAK extractor(true, true, 22, 4, std::vector<int>());
+    FREAK extractor;
 
     // MATCHER
     // The standard Hamming distance can be used such as
     // BruteForceMatcher<Hamming> matcher;
     // or the proposed cascade of hamming distance
-#ifdef USE_SSE
+#ifdef CV_SSSE3
     BruteForceMatcher< HammingSeg<30,4> > matcher;
 #else
     BruteForceMatcher<Hamming> matcher;

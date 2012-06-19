@@ -23,7 +23,7 @@ set_target_properties( freak PROPERTIES
     VERSION ${freak_VERSION}
     SOVERSION ${freak_SOVERSION}
     INSTALL_NAME_DIR ${LIB_INSTALL_DIR}
-    DEFINE_SYMBOL freak_API_EXPORTS
+    DEFINE_SYMBOL CV_EXPORT
 )
 
 target_link_libraries( freak ${OpenCV_LIBS} )
