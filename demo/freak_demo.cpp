@@ -48,22 +48,34 @@
 
 using namespace cv;
 
-static const std::string kResPath = "../../resources/";
+void help( char** argv )
+{
+    std::cout << "\nUsage: " << argv[0] << " [path/to/image1] [path/to/image2] \n"
+              << "This is an example on how to use the keypoint descriptor presented in the following paper: \n"
+              << "A. Alahi, R. Ortiz, and P. Vandergheynst. FREAK: Fast Retina Keypoint. \n"
+              << "In IEEE Conference on Computer Vision and Pattern Recognition, 2012. CVPR 2012 Open Source Award winner \n"
+              << std::endl;
+}
 
 int main( int argc, char** argv ) {
     // check http://opencv.itseez.com/doc/tutorials/features2d/table_of_content_features2d/table_of_content_features2d.html
     // for OpenCV general detection/matching framework details
 
-    // Load images
-    Mat imgA = imread(kResPath + "images/graf/img1.ppm", CV_LOAD_IMAGE_GRAYSCALE );
-    if( !imgA.data ) {
-        std::cout<< " --(!) Error reading images " << std::endl;
+    if( argc != 3 ) {
+        help(argv);
         return -1;
     }
 
-    Mat imgB = imread(kResPath + "images/graf/img3.ppm", CV_LOAD_IMAGE_GRAYSCALE );
+    // Load images
+    Mat imgA = imread(argv[1], CV_LOAD_IMAGE_GRAYSCALE );
     if( !imgA.data ) {
-        std::cout << " --(!) Error reading images " << std::endl;
+        std::cout<< " --(!) Error reading image " << argv[1] << std::endl;
+        return -1;
+    }
+
+    Mat imgB = imread(argv[2], CV_LOAD_IMAGE_GRAYSCALE );
+    if( !imgA.data ) {
+        std::cout << " --(!) Error reading image " << argv[2] << std::endl;
         return -1;
     }
 
@@ -85,8 +97,8 @@ int main( int argc, char** argv ) {
     // MATCHER
     // The standard Hamming distance can be used such as
     // BruteForceMatcher<Hamming> matcher;
-    // or the proposed cascade of hamming distance
-#ifdef CV_SSSE3
+    // or the proposed cascade of hamming distance using SSSE3
+#if CV_SSSE3
     BruteForceMatcher< HammingSeg<30,4> > matcher;
 #else
     BruteForceMatcher<Hamming> matcher;
@@ -119,34 +131,4 @@ int main( int argc, char** argv ) {
     namedWindow("matches", CV_WINDOW_KEEPRATIO);
     imshow("matches", imgMatch);
     waitKey(0);
-
-    /////////////////////////////////////////////////
-    //
-    //PAIRS SELECTION
-    //FREAK is available with a set of pairs learned off-line. Researchers can run a training process to learn their own set of pair.
-    //For more details read section 4.2 in:
-    //A. Alahi, R. Ortiz, and P. Vandergheynst. FREAK: Fast Retina Keypoint. In IEEE Conference on Computer Vision and Pattern Recognition, 2012.
-
-    //We notice that for keypoint matching applications, image content has little effect on the selected pairs unless very specific
-    //what does matter is the detector type (blobs, corners,...) and the options used (scale/rotation invariance,...)
-    //reduce corrTresh if not enough pairs are selected (43 points --> 903 possible pairs)
-    // Un-comment the following lines if you want to run the training process to learn the best pairs:
-    /*
-    std::vector<string> filenames;
-    filenames.push_back(kResPath + "images/train/1.jpg");
-    filenames.push_back(kResPath + "images/train/2.jpg");
-
-    std::vector<Mat> images(filenames.size());
-    std::vector< std::vector<KeyPoint> > keypoints(filenames.size());
-
-    for( size_t i = 0; i < filenames.size(); ++i ) {
-        images[i] = imread( filenames[i].c_str(), CV_LOAD_IMAGE_GRAYSCALE );
-        if( !images[i].data ) {
-            std::cout<< " --(!) Error reading images " << std::endl;
-            return -1;
-        }
-        detector.detect( images[i], keypoints[i] );
-    }
-    extractor.selectPairs(images, keypoints, kResPath + "selected_pairs2", 0.7);
-    */
 }

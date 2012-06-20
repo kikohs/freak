@@ -38,8 +38,6 @@
 
 namespace cv {
 
-class FREAKImpl; // forward declaration
-
 class CV_EXPORTS FREAK : public cv::DescriptorExtractor
 {
 public:
@@ -47,7 +45,7 @@ public:
          * @param orientationNormalized enable orientation normalization
          * @param scaleNormalized enable scale normalization
          * @param patternScale scaling of the description pattern
-         * @param nb_octave number of octaves covered by the detected keypoints
+         * @param nbOctave number of octaves covered by the detected keypoints
          * @param selectedPairs (optional) user defined selected pairs
     */
     explicit FREAK( bool orientationNormalized = true
@@ -59,28 +57,33 @@ public:
 
     virtual ~FREAK();
 
+    // Not used TODO
+    virtual void read( const FileNode& );
+    virtual void write( FileStorage& ) const;
+
     /** returns the descriptor length in bytes */
     virtual int descriptorSize() const;
 
     /** returns the descriptor type */
     virtual int descriptorType() const;
 
-
     /** select the 512 "best description pairs"
          * @param images grayscale images set
          * @param keypoints set of detected keypoints
-         * @param corrTresh correlation threshold
+         * @param corrThresh correlation threshold
          * @param verbose print construction information
-         * @return list of best pairs
+         * @return list of best pair indexes
     */
     vector<int> selectPairs( const vector<Mat>& images, vector<vector<KeyPoint> >& keypoints,
-                      const double corrTresh = 0.7, bool verbose = true );
+                      const double corrThresh = 0.7, bool verbose = true );
+
+//    AlgorithmInfo* info() const;
 
 protected:
     virtual void computeImpl( const Mat& image, vector<KeyPoint>& keypoints, Mat& descriptors ) const;
 
 protected:
-    FREAKImpl* impl;
+    struct FREAKImpl* impl;
 
 private:
     FREAK( const FREAK& rhs ); // do not allow copy constructor

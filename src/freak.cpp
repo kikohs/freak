@@ -30,6 +30,7 @@
 //  or tort (including negligence or otherwise) arising in any way out of
 //  the use of this software, even if advised of the possibility of such damage.
 
+//#include "precomp.hpp"
 #include <fstream>
 #include <stdlib.h>
 #include <algorithm>
@@ -340,24 +341,6 @@ void FREAKImpl::compute( const Mat& image, std::vector<KeyPoint>& keypoints, Mat
                 keypoints.erase(kpBegin+k);
                 kpScaleIdx.erase(ScaleIdxBegin+k);
             }
-            /*else{
-                int pointsValue[kNB_POINTS];
-                for(size_t i=kNB_POINTS;i--;)
-                {
-                    pointsValue[i]=meanIntensity(image, imgIntegral, keypoints[k].pt.x,keypoints[k].pt.y, kpScaleIdx[k], 0, i);
-                }
-                Mat imTmp;
-                cvtColor( image, imTmp, CV_GRAY2RGB );
-
-                for(size_t n=0; n < kNB_POINTS;++n)
-                {
-                    PatternPoint& pt=patternLookup[ kpScaleIdx[k]*kNB_ORIENTATION*kNB_POINTS  + n ];
-                    circle(imTmp, Point( pt.x+keypoints[k].pt.x,pt.y+keypoints[k].pt.y), pt.sigma, Scalar(pointsValue[n],0,0),-2);
-                }
-                namedWindow( "kp", CV_WINDOW_KEEPRATIO );
-                imshow( "kp", imTmp );
-                waitKey(0);
-            }*/
         }
     }
     else {
@@ -689,6 +672,10 @@ FREAK::~FREAK()
 
 void FREAK::computeImpl( const Mat& image, std::vector<KeyPoint>& keypoints, Mat& descriptors ) const
 {
+    if( image.empty() )
+        return;
+    if( keypoints.empty() )
+        return;
     impl->compute(image, keypoints, descriptors);
 }
 
@@ -705,6 +692,10 @@ int FREAK::descriptorSize() const {
 int FREAK::descriptorType() const {
     return CV_8U;
 }
+
+// TODO
+void FREAK::read( const FileNode& ) {}
+void FREAK::write( FileStorage& ) const {}
 
 } // END NAMESPACE CV
 
