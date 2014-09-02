@@ -428,7 +428,7 @@ void FREAKImpl::compute( const Mat& image, std::vector<KeyPoint>& keypoints, Mat
                 (*ptr) = result128;
                 ++ptr;
             }
-            ptr-=8;
+            ptr -= (FREAK_NB_PAIRS/128)*2;
 #else
             for( int m = CV_FREAK_NB_PAIRS; m--; ) {
                 ptr->set(m, pointsValue[descriptionPairs[m].i]>  pointsValue[descriptionPairs[m].j ] );
